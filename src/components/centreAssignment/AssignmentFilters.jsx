@@ -1,0 +1,164 @@
+/**
+ * Assignment Filters Component
+ * Filter controls for centre assignment
+ */
+
+import {
+  Box,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  Stack,
+  IconButton,
+  TextField,
+  InputAdornment,
+} from '@mui/material';
+import { Clear as ClearIcon, Search as SearchIcon } from '@mui/icons-material';
+
+const AssignmentFilters = ({
+  filters,
+  onFilterChange,
+  onClear,
+  centres,
+  loading,
+}) => {
+  const hasActiveFilters = Object.values(filters).some(
+    (v) => v && v !== '' && v !== 'all'
+  );
+
+  const handleFilterChange = (key, value) => {
+    onFilterChange({ ...filters, [key]: value });
+  };
+
+  const handleClear = () => {
+    onClear();
+  };
+
+  return (
+    <Box sx={{ mb: 3 }}>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search by candidate or centre..."
+            value={filters.search || ''}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: filters.search && (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleFilterChange('search', '')}
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={2}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={filters.status || ''}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+              label="Status"
+              disabled={loading}
+            >
+              <MenuItem value="">All Status</MenuItem>
+              <MenuItem value="ACTIVE">Assigned</MenuItem>
+              <MenuItem value="PENDING">Pending</MenuItem>
+              <MenuItem value="REMOVED">Removed</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={2}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Centre</InputLabel>
+            <Select
+              value={filters.centreId || ''}
+              onChange={(e) => handleFilterChange('centreId', e.target.value)}
+              label="Centre"
+              disabled={loading}
+            >
+              <MenuItem value="">All Centres</MenuItem>
+              {centres?.map((centre) => (
+                <MenuItem key={centre._id} value={centre._id}>
+                  {centre.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={2}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Gender</InputLabel>
+            <Select
+              value={filters.gender || ''}
+              onChange={(e) => handleFilterChange('gender', e.target.value)}
+              label="Gender"
+              disabled={loading}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="MALE">Male</MenuItem>
+              <MenuItem value="FEMALE">Female</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={2}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Department</InputLabel>
+            <Select
+              value={filters.department || ''}
+              onChange={(e) => handleFilterChange('department', e.target.value)}
+              label="Department"
+              disabled={loading}
+            >
+              <MenuItem value="">All Departments</MenuItem>
+              <MenuItem value="Engineering">Engineering</MenuItem>
+              <MenuItem value="Administration">Administration</MenuItem>
+              <MenuItem value="Finance">Finance</MenuItem>
+              <MenuItem value="Human Resources">Human Resources</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+
+        <Grid item xs={12}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {hasActiveFilters && (
+              <Chip
+                label="Clear All Filters"
+                onDelete={handleClear}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+            )}
+            <Chip
+              label={`${Object.values(filters).filter((v) => v && v !== '' && v !== 'all').length} filters active`}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
+          </Stack>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
+export default AssignmentFilters;
