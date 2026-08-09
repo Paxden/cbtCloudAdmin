@@ -1,0 +1,360 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-undef */
+/**
+ * VersionDetailsDrawer Component
+ * Displays detailed version information
+ * 
+ * Location: src/components/packageVersions/VersionDetailsDrawer.jsx
+ */
+
+import { useState } from 'react';
+import {
+  Drawer,
+  Box,
+  Typography,
+  IconButton,
+  Divider,
+  Chip,
+  Grid,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Button,
+  Tooltip,
+  Skeleton,
+  Alert
+} from '@mui/material';
+import {
+  Close as CloseIcon,
+  ExpandMore as ExpandMoreIcon,
+  Inventory as PackageIcon,
+  School as SchoolIcon,
+  LocationOn as LocationIcon,
+  History as HistoryIcon,
+  Person as PersonIcon,
+  Info as InfoIcon,
+  CheckCircle as CheckIcon,
+  Error as ErrorIcon
+} from '@mui/icons-material';
+import VersionStatusChip from './VersionStatusChip';
+
+const VersionDetailsDrawer = ({
+  open,
+  onClose,
+  version,
+  loading = false,
+  onRegenerate,
+  onArchive,
+  canRegenerate = false,
+  canArchive = false
+}) => {
+  const [expandedSections, setExpandedSections] = useState({
+    packageInfo: true,
+    generationInfo: false,
+    changeInfo: false,
+    auditInfo: false
+  });
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  if (loading) {
+    return (
+      <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: 600 } }}>
+        <Box sx={{ p: 3 }}>
+          <Skeleton variant="text" width="70%" height={40} />
+          <Skeleton variant="text" width="40%" height={30} />
+          <Divider sx={{ my: 2 }} />
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} variant="rectangular" height={80} sx={{ mb: 2, borderRadius: 1 }} />
+          ))}
+        </Box>
+      </Drawer>
+    );
+  }
+
+  if (!version) {
+    return (
+      <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: 600 } }}>
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Typography color="text.secondary">Version not found</Typography>
+        </Box>
+      </Drawer>
+    );
+  }
+
+  const isActive = version.status === 'ACTIVE';
+  const isArchived = version.status === 'ARCHIVED';
+
+  const renderPackageInfo = () => (
+    <Accordion
+      expanded={expandedSections.packageInfo}
+      onChange={() => toggleSection('packageInfo')}
+      sx={{ '&:before': { display: 'none' } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <PackageIcon color="primary" />
+          <Typography variant="subtitle1">Package Information</Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Grid container spacing={2}>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Package Name</Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {version.packageName || version.package?.name || 'N/A'}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Version</Typography>
+            <Typography variant="body2">
+              V{version.versionNumber || version.version || 1}
+              {version.isLatest && (
+                <Chip label="Latest" size="small" color="success" sx={{ ml: 1 }} />
+              )}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Centre</Typography>
+            <Typography variant="body2">
+              {version.centre?.name || version.centreName || 'N/A'}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Instance Version</Typography>
+            <Typography variant="body2">
+              V{version.instanceVersion || 1}
+            </Typography>
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant="caption" color="text.secondary">Status</Typography>
+            <VersionStatusChip status={version.status} />
+          </Grid>
+        </Grid>
+      </AccordionDetails>
+    </Accordion>
+  );
+
+  const renderGenerationInfo = () => (
+    <Accordion
+      expanded={expandedSections.generationInfo}
+      onChange={() => toggleSection('generationInfo')}
+      sx={{ '&:before': { display: 'none' } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <PersonIcon color="primary" />
+          <Typography variant="subtitle1">Generation Information</Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Grid container spacing={2}>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Generated By</Typography>
+            <Typography variant="body2">
+              {version.generatedBy?.name || version.generatedBy || 'System'}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Generated Date</Typography>
+            <Typography variant="body2">
+              {new Date(version.generatedAt || version.createdAt).toLocaleString()}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Generation Duration</Typography>
+            <Typography variant="body2">
+              {version.generationDuration ? `${version.generationDuration}s` : 'N/A'}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">File Size</Typography>
+            <Typography variant="body2">
+              {version.fileSize ? `${(version.fileSize / 1024 / 1024).toFixed(2)} MB` : 'N/A'}
+            </Typography>
+          </Grid>
+        </Grid>
+      </AccordionDetails>
+    </Accordion>
+  );
+
+  const renderChangeInfo = () => (
+    <Accordion
+      expanded={expandedSections.changeInfo}
+      onChange={() => toggleSection('changeInfo')}
+      sx={{ '&:before': { display: 'none' } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <InfoIcon color="primary" />
+          <Typography variant="subtitle1">Change Information</Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Grid container spacing={2}>
+          <Grid item xs={12}>
+            <Typography variant="caption" color="text.secondary">Reason</Typography>
+            <Typography variant="body2">
+              {version.reason || 'No reason provided'}
+            </Typography>
+          </Grid>
+          {version.notes && (
+            <Grid item xs={12}>
+              <Typography variant="caption" color="text.secondary">Notes</Typography>
+              <Typography variant="body2">
+                {version.notes}
+              </Typography>
+            </Grid>
+          )}
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Modified Components</Typography>
+            <Typography variant="body2">
+              {version.modifiedComponents?.join(', ') || 'None'}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Affected Candidates</Typography>
+            <Typography variant="body2">
+              {version.affectedCandidates || 0}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Affected Centres</Typography>
+            <Typography variant="body2">
+              {version.affectedCentres || 0}
+            </Typography>
+          </Grid>
+        </Grid>
+      </AccordionDetails>
+    </Accordion>
+  );
+
+  const renderAuditInfo = () => (
+    <Accordion
+      expanded={expandedSections.auditInfo}
+      onChange={() => toggleSection('auditInfo')}
+      sx={{ '&:before': { display: 'none' } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <HistoryIcon color="primary" />
+          <Typography variant="subtitle1">Audit Information</Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Grid container spacing={2}>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Created By</Typography>
+            <Typography variant="body2">
+              {version.createdBy?.name || version.createdBy || 'System'}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Created At</Typography>
+            <Typography variant="body2">
+              {new Date(version.createdAt).toLocaleString()}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Updated By</Typography>
+            <Typography variant="body2">
+              {version.updatedBy?.name || version.updatedBy || 'System'}
+            </Typography>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="caption" color="text.secondary">Updated At</Typography>
+            <Typography variant="body2">
+              {new Date(version.updatedAt).toLocaleString()}
+            </Typography>
+          </Grid>
+          <Grid item xs={12}>
+            <Typography variant="caption" color="text.secondary">Version ID</Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {version._id}
+            </Typography>
+          </Grid>
+        </Grid>
+      </AccordionDetails>
+    </Accordion>
+  );
+
+  return (
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      PaperProps={{ sx: { width: 600, maxWidth: '90vw' } }}
+    >
+      {/* Header */}
+      <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+          <Box>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="h6">
+                Version Details
+              </Typography>
+              <VersionStatusChip status={version.status} size="small" />
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              {version.packageName || version.package?.name || 'Package'} - V{version.versionNumber || version.version || 1}
+            </Typography>
+          </Box>
+          <IconButton onClick={onClose} size="small">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      </Box>
+
+      {/* Actions */}
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        {canRegenerate && isActive && (
+          <Tooltip title="Regenerate this version">
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<RefreshIcon />}
+              onClick={() => onRegenerate(version._id)}
+            >
+              Regenerate
+            </Button>
+          </Tooltip>
+        )}
+        {canArchive && !isArchived && (
+          <Tooltip title="Archive this version">
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<ArchiveIcon />}
+              onClick={() => onArchive(version._id)}
+            >
+              Archive
+            </Button>
+          </Tooltip>
+        )}
+        {isArchived && (
+          <Chip label="Archived" color="default" size="small" />
+        )}
+        {version.isLatest && (
+          <Chip label="Latest Version" color="success" size="small" />
+        )}
+      </Box>
+
+      {/* Content */}
+      <Box sx={{ p: 2, overflow: 'auto', flex: 1 }}>
+        {renderPackageInfo()}
+        {renderGenerationInfo()}
+        {renderChangeInfo()}
+        {renderAuditInfo()}
+      </Box>
+    </Drawer>
+  );
+};
+
+export default VersionDetailsDrawer;

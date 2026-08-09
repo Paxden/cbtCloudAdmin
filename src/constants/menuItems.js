@@ -5,7 +5,7 @@
  * Separate from navigation to avoid circular dependencies
  *
  * PHASE 3 - Examination Management Modules
- * Updated with all 11 Phase 3 modules
+ * PHASE 4 - Package Management Modules (continuation under Examination Lifecycle)
  */
 
 import {
@@ -24,6 +24,7 @@ import {
   Settings as SettingsIcon,
   CheckCircle as ReviewIcon,
   RateReview as ApprovalIcon,
+  AccountTree as InstanceIcon, 
   Preview as PreviewIcon,
   History as VersionIcon,
   // Phase 3 Icons
@@ -37,6 +38,17 @@ import {
   Schedule as SchedulingIcon,
   Visibility as PreviewDashboardIcon,
   Verified as ValidationIcon,
+  // Phase 4 Icons - Package Management
+  Dashboard as PackageDashboardIcon,
+  AddBox as PackageGeneratorIcon,
+  Article as CandidatePapersIcon,
+  Lock as EncryptionIcon,
+  CloudUpload as DistributionIcon,
+  Download as DownloadsIcon,
+  Timeline as VersionsIcon,
+  History as PackageHistoryIcon,
+  CheckCircle as SignatureIcon,
+  Check as ChecksumIcon,
 } from "@mui/icons-material";
 
 import { ROLES } from "./roles";
@@ -140,15 +152,19 @@ export const MENU_ITEMS = [
   },
 
   // ============================================================
-  // PHASE 3 - EXAMINATION MANAGEMENT MODULES
+  // PHASE 3 & 4 - EXAMINATION LIFECYCLE
+  // (Examination Management + Package Preparation)
   // ============================================================
   {
-    id: "examManagement",
-    title: "Examination Management",
+    id: "examinationLifecycle",
+    title: "Examination Lifecycle",
     icon: ExamIcon,
     permissions: [],
     roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
     children: [
+      // ==========================================================
+      // PHASE 3 - Examination Planning
+      // ==========================================================
       // Module 1: Examination Creation
       {
         id: "examinations",
@@ -257,6 +273,136 @@ export const MENU_ITEMS = [
         path: "/exams/validation",
         permissions: ["VALIDATE_EXAMINATION"],
         roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN],
+      },
+
+      // ==========================================================
+      // DIVIDER - Phase 4: Package Preparation
+      // ==========================================================
+      {
+        id: "packageDivider",
+        title: "Package Preparation",
+        divider: true,
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+
+      // Module 1: Package Dashboard
+      {
+        id: "packageDashboard",
+        title: "Package Dashboard",
+        icon: PackageDashboardIcon,
+        path: "/packages",
+        permissions: ["VIEW_PACKAGES"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+      {
+        id: "examinationInstances",
+        title: "Examination Instances",
+        icon: InstanceIcon,
+        path: "/instances",
+        permissions: ["VIEW_INSTANCES"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+
+      // Module 2: Package Generator
+      {
+        id: "PackageGenerator",
+        title: "Package Generator",
+        icon: PackageGeneratorIcon,
+        path: "/generate",
+        permissions: ["GENERATE_PACKAGE"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN],
+      },
+
+      // Module 3: Candidate Papers
+      {
+        id: "candidatePapers",
+        title: "Candidate Papers",
+        icon: CandidatePapersIcon,
+        path: "/papers",
+        permissions: ["VIEW_PAPERS"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+      {
+        id: "Encryption",
+        title: "Encryption",
+        icon: EncryptionIcon,
+        path: "/encryption",
+        permissions: ["VIEW_ENCRYPTION"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+      {
+        id: "Signature",
+        title: "Signature",
+        icon: SignatureIcon,
+        path: "/signature",
+        permissions: ["VIEW_SIGNATURE"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+      {
+        id: "Checksum",
+        title: "Checksum",
+        icon: ChecksumIcon,
+        path: "/checksum",
+        permissions: ["VIEW_CHECKSUM"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+       {
+        id: "packageBuilder",
+        title: "Package Builder",
+        icon: PackageGeneratorIcon,
+        path: "/builder",
+        permissions: ["BUILD_PACKAGE"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN],
+      },
+
+      // Module 4: Package Validation
+      {
+        id: "packageValidation",
+        title: "Package Validation",
+        icon: ValidationIcon,
+        path: "/validation",
+        permissions: ["VALIDATE_PACKAGE"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN],
+      },
+
+      // Module 5: Distribution
+      {
+        id: "distribution",
+        title: "Distribution",
+        icon: DistributionIcon,
+        path: "/distribution",
+        permissions: ["DISTRIBUTE_PACKAGE"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+
+      // Module 6: Downloads
+      {
+        id: "downloads",
+        title: "Downloads",
+        icon: DownloadsIcon,
+        path: "/downloads",
+        permissions: ["VIEW_DOWNLOADS"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+
+      // Module 7: Versions
+      {
+        id: "packageVersions",
+        title: "Versions",
+        icon: VersionsIcon,
+        path: "/versions",
+        permissions: ["VIEW_VERSIONS"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
+      },
+
+      // Module 8: History
+      {
+        id: "packageHistory",
+        title: "History",
+        icon: PackageHistoryIcon,
+        path: "/history",
+        permissions: ["VIEW_HISTORY"],
+        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN, ROLES.EXAM_MANAGER],
       },
     ],
   },

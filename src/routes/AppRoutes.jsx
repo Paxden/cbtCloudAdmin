@@ -56,7 +56,6 @@ import CandidateDetails from "../pages/candidates/CandidateDetails";
 import EditCandidate from "../pages/candidates/EditCandidate";
 import CentreAssignment from "../pages/centreAssignment/CentreAssignment";
 import AssignmentHistory from "../pages/centreAssignment/AssignmentHistory";
-// Add imports
 import CentreList from "../pages/centres/CentreList";
 import CentreDetails from "../pages/centres/CentreDetails";
 import CentreFormPage from "../pages/centres/CentreFormPage";
@@ -70,14 +69,28 @@ import ExaminationSchedule from "../pages/examinationSchedule/ExaminationSchedul
 import SessionCalendar from "../pages/examinationSchedule/SessionCalendar";
 import ExaminationInstructions from "../pages/examinationInstructions/ExaminationInstructions";
 import ExaminationPreview from "../pages/examinationPreview/ExaminationPreview";
-// Add imports
 import ExaminationValidation from "../pages/examinationValidation/ExaminationValidation";
+import ExaminationsInstances from "../pages/packages/ExaminationsInstancesPage"
+import PackageBuilder from "../pages/packages/PackageGeneratorPage.jsx";
+import CandidatePapersPage from "../pages/packages/CandidatePapersPage.jsx";
+import PackageValidationPage from "../pages/packages/PackageValidationPage.jsx"
 
-// Add routes inside DashboardLayout
+// ============================================================
+// PHASE 4 - PACKAGE MANAGEMENT MODULES
+// ============================================================
 
-// Add routes inside DashboardLayout
+// Module 1: Package Dashboard
+import PackageDashboard from "../pages/packages/PackageDashboard";
+// import PackageDistributionPage from "../pages/packages/PackageDistributionPage.jsx";
+import PackageDownloadsPage from "../pages/packages/DownloadManagementPage.jsx";
+import PackageVersionsPage from "../pages/packages/PackageVersionsPage.jsx";
+import PackageHistoryPage from "../pages/packages/PackageHistoryPage.jsx";
+import Encryption from "../pages/packages/EncryptionManagementPage.jsx"
+import Signature from "../pages/packages/SignatureManagementPage.jsx"
+import ChecksumManagementPage from "../pages/packages/ChecksumManagementPage.jsx";
+import PackageManagementPage from "../pages/packages/PackageManagementPage.jsx";
+import DistributionManagementPage from "../pages/packages/DistributionManagementPage.jsx";
 
-// Add route inside DashboardLayout
 
 const LoadingFallback = () => (
   <Box
@@ -130,14 +143,17 @@ const AppRoutes = () => {
             <Route element={<DashboardLayout />}>
               {/* Redirects */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              
               {/* Dashboard */}
               <Route path="/dashboard" element={<DashboardHome />} />
+              
               {/* Profile */}
               <Route path="/profile" element={<Profile />} />
               <Route
                 path="/profile/change-password"
                 element={<ChangePassword />}
               />
+
               {/* ============================================================
                   PHASE 2 - QUESTION BANK MODULES
                   ============================================================ */}
@@ -148,8 +164,10 @@ const AppRoutes = () => {
               />
               <Route path="/question-bank/subjects" element={<Subjects />} />
               <Route path="/question-bank/topics" element={<Topics />} />
+              
               {/* Question Bank - Editor Demo */}
               <Route path="/editor-demo" element={<EditorDemo />} />
+              
               {/* Question Bank - Main */}
               <Route path="/question-bank" element={<QuestionBank />} />
               <Route
@@ -160,6 +178,7 @@ const AppRoutes = () => {
                 path="/question-bank/questions/:id/edit"
                 element={<EditQuestion />}
               />
+              
               {/* Question Bank - Preview */}
               <Route
                 path="/question-bank/preview/demo"
@@ -169,15 +188,19 @@ const AppRoutes = () => {
                 path="/question-bank/questions/:questionId/preview"
                 element={<QuestionPreview />}
               />
+              
               {/* Media Library */}
               <Route path="/question-bank/media" element={<MediaLibrary />} />
+              
               {/* Bulk Import */}
               <Route path="/question-bank/import" element={<BulkImport />} />
+              
               {/* Advanced Search */}
               <Route
                 path="/question-bank/search"
                 element={<AdvancedQuestionSearch />}
               />
+              
               {/* Question Approval */}
               <Route
                 path="/question-approval"
@@ -187,11 +210,13 @@ const AppRoutes = () => {
                 path="/question-approval/review/:questionId"
                 element={<QuestionReview />}
               />
-              {/* Reviews - Redirect to Approval (optional) */}
+              
+              {/* Reviews - Redirect to Approval */}
               <Route
                 path="/reviews"
                 element={<Navigate to="/question-approval" replace />}
               />
+              
               {/* Version */}
               <Route
                 path="/question-bank/questions/:questionId/versions"
@@ -201,11 +226,11 @@ const AppRoutes = () => {
                 path="/question-bank/statistics"
                 element={<QuestionAnalytics />}
               />
+
               {/* ============================================================
                   PHASE 3 - EXAMINATION MODULES
                   ============================================================ */}
               {/* Module 1: Examination Creation */}
-              // Add routes inside DashboardLayout
               <Route path="/examinations" element={<Examinations />} />
               <Route
                 path="/examinations/create"
@@ -220,11 +245,16 @@ const AppRoutes = () => {
                 path="/examinations/:id/clone"
                 element={<ExaminationFormPage />}
               />
-              {/* Candidate */}
+              
+              {/* Module 2: Candidate Import */}
               <Route path="/candidate-import" element={<CandidateImport />} />
+              
+              {/* Module 3: Candidate Management */}
               <Route path="/candidates" element={<CandidateList />} />
               <Route path="/candidates/:id" element={<CandidateDetails />} />
               <Route path="/candidates/:id/edit" element={<EditCandidate />} />
+              
+              {/* Centres Management */}
               <Route path="/centres" element={<CentreList />} />
               <Route path="/centres/create" element={<CentreFormPage />} />
               <Route path="/centres/:id" element={<CentreDetails />} />
@@ -233,11 +263,15 @@ const AppRoutes = () => {
                 path="/centres/:id/assign-manager"
                 element={<CentreFormPage />}
               />
+              
+              {/* Module 4: Centre Assignment */}
               <Route path="/centre-assignment" element={<CentreAssignment />} />
               <Route
                 path="/centre-assignment/history"
                 element={<AssignmentHistory />}
               />
+              
+              {/* Module 5: Examination Blueprint */}
               <Route
                 path="/exams/blueprint"
                 element={<ExaminationBlueprint />}
@@ -246,6 +280,8 @@ const AppRoutes = () => {
                 path="/examination-blueprint/:id"
                 element={<BlueprintDetails />}
               />
+              
+              {/* Module 6: Question Selection */}
               <Route
                 path="/exams/question-selection"
                 element={<QuestionSelection />}
@@ -258,7 +294,11 @@ const AppRoutes = () => {
                 path="/exams/question-selection/preview"
                 element={<PaperPreview />}
               />
+              
+              {/* Module 7: Examination Rules */}
               <Route path="/exams/rules" element={<ExaminationPolicies />} />
+              
+              {/* Module 8: Scheduling */}
               <Route
                 path="/exams/scheduling"
                 element={<ExaminationSchedule />}
@@ -267,11 +307,17 @@ const AppRoutes = () => {
                 path="/exams/scheduling/calendar"
                 element={<SessionCalendar />}
               />
+              
+              {/* Module 9: Instructions */}
               <Route
                 path="/exams/instructions"
                 element={<ExaminationInstructions />}
               />
+              
+              {/* Module 10: Preview */}
               <Route path="/exams/preview" element={<ExaminationPreview />} />
+              
+              {/* Module 11: Validation */}
               <Route
                 path="/exams/validation"
                 element={<ExaminationValidation />}
@@ -280,6 +326,25 @@ const AppRoutes = () => {
                 path="/exams/validation/history"
                 element={<ExaminationValidation />}
               />
+
+              {/* ============================================================
+                  PHASE 4 - PACKAGE MANAGEMENT MODULES
+                  ============================================================ */}
+              
+              {/* Module 1: Package Dashboard */}
+              <Route path="/packages" element={<PackageDashboard />} />
+              <Route path="/instances" element={<ExaminationsInstances />} />
+              <Route path="/generate" element={<PackageManagementPage />} />
+              <Route path="/papers" element={<CandidatePapersPage />} />
+              <Route path="/encryption" element={<Encryption />} />
+              <Route path="/signature" element={<Signature />} />
+              <Route path="/checksum" element={<ChecksumManagementPage />} />
+              <Route path="/builder" element={<PackageBuilder />} />
+              <Route path="/validation" element={<PackageValidationPage />} />
+              <Route path="/distribution" element={<DistributionManagementPage />} />
+              <Route path="/downloads" element={<PackageDownloadsPage />} />
+              <Route path="/history" element={<PackageVersionsPage />} />
+              <Route path="/versions" element={<PackageHistoryPage />} />
             </Route>
           </Route>
 

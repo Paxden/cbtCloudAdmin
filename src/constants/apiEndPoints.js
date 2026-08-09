@@ -180,6 +180,16 @@ EXAMINATIONS: {
     STATS: `${API_VERSION}/examinations/policies/stats`,
   },
 
+   // Dashboard endpoints - Updated to match backend
+  DASHBOARD: {
+    OVERVIEW: `${API_VERSION}/package-dashboard/overview`,
+    TIMELINE: `${API_VERSION}/package-dashboard/timeline`,
+    PERFORMANCE: `${API_VERSION}/package-dashboard/performance`,
+    CENTRES: `${API_VERSION}/package-dashboard/centres`,
+    ACTIVITY: `${API_VERSION}/package-dashboard/activity`,
+    PACKAGE_METRICS: `${API_VERSION}/package-dashboard/packages/metrics`,
+  },
+
   // Examination Scheduling
   SCHEDULING: {
     SESSIONS: (examinationId) =>
