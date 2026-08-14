@@ -1,6 +1,4 @@
-/* eslint-disable react-hooks/refs */
 /* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable react-hooks/exhaustive-deps */
 
 /**
  * Encryption Hooks
@@ -18,20 +16,20 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as encryptionService from '../services/package/encryptionService.js';
 
 /**
- * Hook: Get encryption status with auto-refresh
+ * Generic hook for fetching data
  */
-export const useEncryptionStatus = (packageId, options = {}) => {
+const useFetchData = (fetchFn, params = {}, options = {}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
   const abortControllerRef = useRef(null);
   const isMountedRef = useRef(true);
-  const intervalRef = useRef(null);
 
-  const fetchStatus = useCallback(async () => {
-    if (!packageId) {
-      setData(null);
+  const fetchData = useCallback(async () => {
+    // ✅ Skip if params is null or undefined or 'null'
+    if (!params || params === 'null') {
+      setLoading(false);
       return;
     }
     
@@ -45,55 +43,30 @@ export const useEncryptionStatus = (packageId, options = {}) => {
     setError(null);
     
     try {
-      const response = await encryptionService.getEncryptionStatus(packageId);
+      const result = await fetchFn(params);
       if (isMountedRef.current) {
-        setData(response);
+        setData(result);
         setError(null);
       }
-      return response;
     } catch (err) {
       if (isMountedRef.current && err.name !== 'AbortError') {
         setError(err);
         setData(null);
       }
-      throw err;
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
       }
     }
-  }, [packageId]);
-
-  const startPolling = useCallback((interval = 3000) => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    
-    // Initial fetch
-    fetchStatus();
-    
-    // Start polling
-    intervalRef.current = setInterval(() => {
-      fetchStatus();
-    }, interval);
-  }, [fetchStatus]);
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
+  }, [fetchFn, params]);
 
   useEffect(() => {
     isMountedRef.current = true;
     
-    if (options.enabled !== false) {
-      if (options.autoPoll) {
-        startPolling(options.pollInterval || 3000);
-      } else {
-        fetchStatus();
-      }
+    // ✅ Only fetch if enabled and params is valid
+    const isValidParams = params && params !== 'null';
+    if (options.enabled !== false && isValidParams) {
+      fetchData();
     }
     
     return () => {
@@ -101,20 +74,86 @@ export const useEncryptionStatus = (packageId, options = {}) => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      stopPolling();
     };
-  }, [packageId, options.enabled, options.autoPoll]);
+  }, [fetchData, options.enabled, params]);
 
   return {
     data,
     loading,
     error,
-    refetch: fetchStatus,
-    startPolling,
-    stopPolling,
-    isPolling: !!intervalRef.current,
+    refetch: fetchData,
   };
 };
+
+// ============================================================
+// QUERY HOOKS
+// ============================================================
+
+/**
+ * Hook: Get encryption status with auto-refresh
+ */
+export const useEncryptionStatus = (packageId, options = {}) => {
+  const [isPolling, setIsPolling] = useState(false);
+  const intervalRef = useRef(null);
+  
+  // ✅ Validate packageId before enabling
+  const isValidPackageId = packageId && packageId !== 'null' && packageId !== null && packageId !== undefined;
+  
+  const fetchResult = useFetchData(
+    encryptionService.getEncryptionStatus,
+    packageId,
+    { ...options, enabled: isValidPackageId && options.enabled !== false }
+  );
+
+  const startPolling = useCallback((interval = 3000) => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    
+    setIsPolling(true);
+    
+    // Initial fetch - only if valid
+    if (isValidPackageId) {
+      fetchResult.refetch();
+    }
+    
+    // Start polling
+    intervalRef.current = setInterval(() => {
+      if (isValidPackageId) {
+        fetchResult.refetch();
+      }
+    }, interval);
+  }, [fetchResult, isValidPackageId]);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsPolling(false);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
+
+  return {
+    ...fetchResult,
+    startPolling,
+    stopPolling,
+    isPolling,
+  };
+};
+
+// ============================================================
+// MUTATION HOOKS
+// ============================================================
 
 /**
  * Hook: Encrypt a package
@@ -125,6 +164,9 @@ export const useEncryptPackage = () => {
   const [result, setResult] = useState(null);
 
   const encryptPackage = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      throw new Error('Invalid package ID');
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -153,6 +195,9 @@ export const useReEncryptPackage = () => {
   const [result, setResult] = useState(null);
 
   const reEncryptPackage = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      throw new Error('Invalid package ID');
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -181,6 +226,9 @@ export const useDecryptAsset = () => {
   const [result, setResult] = useState(null);
 
   const decryptAsset = useCallback(async (packageId, assetType) => {
+    if (!packageId || packageId === 'null') {
+      throw new Error('Invalid package ID');
+    }
     setLoading(true);
     setError(null);
     setResult(null);

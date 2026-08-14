@@ -47,11 +47,18 @@ const ExaminationInstancesPage = () => {
   // Get auth from the existing hook
   const { user } = useAuth();
 
+  // ✅ FIX: Get role name from user object (user.role can be an object or string)
+  const userRole = user?.role?.name || user?.role || "USER";
+  const userRoleName =
+    typeof userRole === "string" ? userRole : userRole?.name || "USER";
+
   // Permissions based on user role
-  const canCreate = user?.role === "SUPER_ADMIN" || user?.role === "TECH_ADMIN";
-  const canLock = user?.role === "SUPER_ADMIN" || user?.role === "TECH_ADMIN";
-  const canArchive = user?.role === "SUPER_ADMIN" || user?.role === "TECH_ADMIN";
-  const canGenerate = user?.role === "SUPER_ADMIN" || user?.role === "TECH_ADMIN";
+  const isAdmin =
+    userRoleName === "SUPER_ADMIN" || userRoleName === "TECH_ADMIN";
+  const canCreate = isAdmin;
+  const canLock = isAdmin;
+  const canArchive = isAdmin;
+  const canGenerate = isAdmin;
 
   // Use the instance hook
   const {
@@ -146,13 +153,16 @@ const ExaminationInstancesPage = () => {
         navigate(`/packages/generate?instanceId=${instanceId}`);
       }
     },
-    [navigate, navigateToPackageGenerator]
+    [navigate, navigateToPackageGenerator],
   );
 
   // Handle view history (placeholder)
-  const handleViewHistory = useCallback((instanceId) => {
-    navigate(`/instances/${instanceId}/history`);
-  }, [navigate]);
+  const handleViewHistory = useCallback(
+    (instanceId) => {
+      navigate(`/instances/${instanceId}/history`);
+    },
+    [navigate],
+  );
 
   // Handle lock with confirmation
   const handleLockConfirm = useCallback(
@@ -163,7 +173,7 @@ const ExaminationInstancesPage = () => {
         // Error handled in hook
       }
     },
-    [handleLock]
+    [handleLock],
   );
 
   return (

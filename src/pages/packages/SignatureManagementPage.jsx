@@ -1,3 +1,5 @@
+
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 /**
  * SignatureManagementPage
@@ -6,7 +8,7 @@
  * Location: src/pages/signature/SignatureManagementPage.jsx
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -56,6 +58,9 @@ import {
   useRegenerateSignature,
 } from '../../hooks/useSignature';
 
+// Import packages hook
+import { usePackages } from '../../hooks/usePackage';
+
 // Components
 import SignatureStatusCard from '../../components/signature/SignatureStatusCard';
 import SignatureDialog from '../../components/signature/SignatureDialog';
@@ -66,6 +71,15 @@ import {
   SignatureStatusLabels,
   SignatureStatusColors,
 } from '../../types/signature.types';
+
+// Helper: Format file size
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 const SignatureManagementPage = () => {
   const navigate = useNavigate();
@@ -90,105 +104,73 @@ const SignatureManagementPage = () => {
   const { regenerateSignature, loading: regenerating, result: regenerateResult } = useRegenerateSignature();
 
   // Get signature status for selected package
+  // ✅ Only enable when selectedPackageId is a valid non-null value
   const {
     data: signatureStatus,
     loading: statusLoading,
     error: statusError,
     refetch: refetchStatus,
-  } = useSignature(selectedPackageId, {
-    enabled: !!selectedPackageId,
-  });
-
-  // Mock packages data - replace with actual API call
-  const packages = [
+  } = useSignature(
+    selectedPackageId && selectedPackageId !== 'null' ? selectedPackageId : null,
     {
-      id: '1',
-      packageCode: 'PROMO-2027-ABJ001-V1',
-      examName: 'Promotion Examination 2027',
-      centreCode: 'ABJ001',
-      status: 'ENCRYPTED',
-      createdAt: '2026-08-01T21:14:01.468Z',
-      signatureStatus: SignatureStatus.VERIFIED,
-    },
-    {
-      id: '2',
-      packageCode: 'PROMO-2027-LAG002-V1',
-      examName: 'Promotion Examination 2027',
-      centreCode: 'LAG002',
-      status: 'ENCRYPTED',
-      createdAt: '2026-08-02T10:30:00.000Z',
-      signatureStatus: SignatureStatus.PENDING,
-    },
-  ];
-
-  // Handlers
-  const handleOpenDialog = (packageId, packageCode, mode) => {
-    setSelectedPackageId(packageId);
-    setSelectedPackageCode(packageCode);
-    setDialogMode(mode);
-    setDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    if (selectedPackageId) {
-      refetchStatus();
+      enabled: !!selectedPackageId && selectedPackageId !== 'null' && selectedPackageId !== null,
     }
-  };
+  );
 
-  const handleSign = async (packageId) => {
-    try {
-      await signPackage(packageId);
-      showSnackbar('Package signed successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to sign package', 'error');
+  // ✅ Memoize filter params to prevent infinite re-renders
+  const packageParams = useMemo(() => ({
+    page: 1,
+    limit: 100,
+    search: searchQuery || undefined,
+  }), [searchQuery]);
+
+  // Get packages with memoized params
+  const {
+    data: packagesData,
+    loading: packagesLoading,
+    error: packagesError,
+    refetch: refetchPackages,
+  } = usePackages(packageParams);
+
+  const packages = packagesData?.data || [];
+
+  // ============================================================
+  // ✅ HELPER FUNCTIONS (defined first)
+  // ============================================================
+
+  // ✅ Determine signature status from package data
+  const getPackageSignatureStatus = useCallback((pkg) => {
+    // Check if package has signature status from API
+    if (pkg.signatureStatus) {
+      return pkg.signatureStatus;
     }
-  };
-
-  const handleVerify = async (packageId) => {
-    try {
-      await verifySignature(packageId);
-      showSnackbar('Signature verified successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to verify signature', 'error');
+    
+    // Check package status
+    if (pkg.status === 'VERIFIED') {
+      return SignatureStatus.VERIFIED;
     }
-  };
-
-  const handleRevoke = async (packageId, reason) => {
-    try {
-      await revokeSignature(packageId, reason);
-      showSnackbar('Signature revoked successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to revoke signature', 'error');
+    if (pkg.status === 'SIGNED') {
+      return SignatureStatus.SIGNED;
     }
-  };
-
-  const handleRegenerate = async (packageId) => {
-    try {
-      await regenerateSignature(packageId);
-      showSnackbar('Signature regenerated successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to regenerate signature', 'error');
+    if (pkg.status === 'SIGNING') {
+      return SignatureStatus.SIGNING;
     }
-  };
+    if (pkg.status === 'REVOKED') {
+      return SignatureStatus.REVOKED;
+    }
+    if (pkg.status === 'FAILED') {
+      return SignatureStatus.FAILED;
+    }
+    
+    // Default to PENDING for packages that can be signed
+    if (pkg.status === 'ENCRYPTED' || pkg.status === 'READY_FOR_SIGNATURE') {
+      return SignatureStatus.PENDING;
+    }
+    
+    return SignatureStatus.PENDING;
+  }, []);
 
-  const showSnackbar = (message, severity = 'info') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ open: false, message: '', severity: 'info' });
-  };
-
-  const handleViewPackage = (packageId) => {
-    navigate(`/packages/${packageId}`);
-  };
-
-  const getSignatureStatusChip = (status) => {
+  const getSignatureStatusChip = useCallback((status) => {
     const label = SignatureStatusLabels[status] || status;
     const color = SignatureStatusColors[status] || '#9e9e9e';
 
@@ -211,25 +193,191 @@ const SignatureManagementPage = () => {
         }}
       />
     );
-  };
+  }, []);
 
-  // Filter packages
-  const filteredPackages = packages.filter(
-    (pkg) =>
-      pkg.packageCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.examName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.centreCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ✅ Check if package can be signed
+  const canSignPackage = useCallback((pkg) => {
+    const status = getPackageSignatureStatus(pkg);
+    return status !== SignatureStatus.SIGNED && 
+           status !== SignatureStatus.VERIFIED &&
+           status !== SignatureStatus.SIGNING &&
+           pkg.status !== 'REVOKED' &&
+           pkg.status !== 'FAILED';
+  }, [getPackageSignatureStatus]);
 
-  // Statistics
-  const stats = {
-    total: packages.length,
-    verified: packages.filter(p => p.signatureStatus === SignatureStatus.VERIFIED).length,
-    signed: packages.filter(p => p.signatureStatus === SignatureStatus.SIGNED).length,
-    pending: packages.filter(p => p.signatureStatus === SignatureStatus.PENDING).length,
-    revoked: packages.filter(p => p.signatureStatus === SignatureStatus.REVOKED).length,
-    failed: packages.filter(p => p.signatureStatus === SignatureStatus.FAILED).length,
-  };
+  // ✅ Check if package can be verified
+  const canVerifyPackage = useCallback((pkg) => {
+    const status = getPackageSignatureStatus(pkg);
+    return status === SignatureStatus.SIGNED;
+  }, [getPackageSignatureStatus]);
+
+  // ✅ Check if package can be revoked
+  const canRevokePackage = useCallback((pkg) => {
+    const status = getPackageSignatureStatus(pkg);
+    return (status === SignatureStatus.SIGNED || 
+            status === SignatureStatus.VERIFIED) &&
+            pkg.status !== 'REVOKED';
+  }, [getPackageSignatureStatus]);
+
+  // ✅ Check if package can be regenerated
+  const canRegeneratePackage = useCallback((pkg) => {
+    const status = getPackageSignatureStatus(pkg);
+    return (status === SignatureStatus.SIGNED || 
+            status === SignatureStatus.VERIFIED) &&
+            pkg.status !== 'REVOKED';
+  }, [getPackageSignatureStatus]);
+
+  // ============================================================
+  // ✅ SNACKBAR FUNCTIONS (defined before being used)
+  // ============================================================
+
+  const showSnackbar = useCallback((message, severity = 'info') => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleCloseSnackbar = useCallback(() => {
+    setSnackbar({ open: false, message: '', severity: 'info' });
+  }, []);
+
+  // ============================================================
+  // ✅ HANDLERS (defined after showSnackbar)
+  // ============================================================
+
+  const handleOpenDialog = useCallback((packageId, packageCode, mode) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    setSelectedPackageId(packageId);
+    setSelectedPackageCode(packageCode);
+    setDialogMode(mode);
+    setDialogOpen(true);
+  }, [showSnackbar]);
+
+  const handleCloseDialog = useCallback(() => {
+    setDialogOpen(false);
+    if (selectedPackageId && selectedPackageId !== 'null') {
+      refetchStatus();
+    }
+    refetchPackages();
+  }, [selectedPackageId, refetchStatus, refetchPackages]);
+
+  const handleSign = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await signPackage(packageId);
+      showSnackbar('Package signed successfully!', 'success');
+      refetchStatus();
+      refetchPackages();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to sign package', 'error');
+    }
+  }, [signPackage, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleVerify = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await verifySignature(packageId);
+      showSnackbar('Signature verified successfully!', 'success');
+      refetchStatus();
+      refetchPackages();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to verify signature', 'error');
+    }
+  }, [verifySignature, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleRevoke = useCallback(async (packageId, reason) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await revokeSignature(packageId, reason);
+      showSnackbar('Signature revoked successfully!', 'success');
+      refetchStatus();
+      refetchPackages();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to revoke signature', 'error');
+    }
+  }, [revokeSignature, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleRegenerate = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await regenerateSignature(packageId);
+      showSnackbar('Signature regenerated successfully!', 'success');
+      refetchStatus();
+      refetchPackages();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to regenerate signature', 'error');
+    }
+  }, [regenerateSignature, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleViewPackage = useCallback((packageId) => {
+    navigate(`/packages/${packageId}`);
+  }, [navigate]);
+
+  const handleRefresh = useCallback(() => {
+    if (selectedPackageId && selectedPackageId !== 'null') {
+      refetchStatus();
+    }
+    refetchPackages();
+    showSnackbar('Refreshed successfully', 'success');
+  }, [selectedPackageId, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleCheckStatus = useCallback((packageId, packageCode) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    setSelectedPackageId(packageId);
+    setSelectedPackageCode(packageCode);
+    refetchStatus();
+  }, [refetchStatus, showSnackbar]);
+
+  // ============================================================
+  // ✅ STATISTICS
+  // ============================================================
+
+  const stats = useMemo(() => {
+    const total = packages.length;
+    const verified = packages.filter(p => 
+      getPackageSignatureStatus(p) === SignatureStatus.VERIFIED ||
+      p.status === 'VERIFIED'
+    ).length;
+    const signed = packages.filter(p => 
+      getPackageSignatureStatus(p) === SignatureStatus.SIGNED ||
+      p.status === 'SIGNED'
+    ).length;
+    const pending = packages.filter(p => 
+      getPackageSignatureStatus(p) === SignatureStatus.PENDING ||
+      p.status === 'ENCRYPTED' || 
+      p.status === 'READY_FOR_SIGNATURE'
+    ).length;
+    const revoked = packages.filter(p => 
+      getPackageSignatureStatus(p) === SignatureStatus.REVOKED ||
+      p.status === 'REVOKED'
+    ).length;
+    const failed = packages.filter(p => 
+      getPackageSignatureStatus(p) === SignatureStatus.FAILED ||
+      p.status === 'FAILED'
+    ).length;
+    
+    return { total, verified, signed, pending, revoked, failed };
+  }, [packages, getPackageSignatureStatus]);
+
+  // ============================================================
+  // ✅ RENDER
+  // ============================================================
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -274,12 +422,8 @@ const SignatureManagementPage = () => {
         <Button
           variant="contained"
           startIcon={<RefreshIcon />}
-          onClick={() => {
-            if (selectedPackageId) {
-              refetchStatus();
-            }
-            showSnackbar('Refreshed successfully', 'success');
-          }}
+          onClick={handleRefresh}
+          disabled={packagesLoading}
         >
           Refresh
         </Button>
@@ -372,140 +516,149 @@ const SignatureManagementPage = () => {
           <Typography variant="h6">Packages</Typography>
         </Box>
 
-        {filteredPackages.length === 0 ? (
+        {packagesLoading && packages.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading packages...</Typography>
+          </Box>
+        ) : packages.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <Typography color="text.secondary">
               {searchQuery ? 'No packages match your search' : 'No packages found'}
             </Typography>
           </Box>
         ) : (
-          filteredPackages.map((pkg) => (
-            <Box
-              key={pkg.id}
-              sx={{
-                p: 2,
-                borderBottom: 1,
-                borderColor: 'divider',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                },
-              }}
-            >
-              <Grid container alignItems="center" spacing={2}>
-                <Grid item xs={12} md={3}>
-                  <Typography variant="subtitle2" fontWeight="medium">
-                    {pkg.packageCode}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {pkg.examName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Centre: {pkg.centreCode}
-                  </Typography>
-                </Grid>
+          packages.map((pkg) => {
+            const sigStatus = getPackageSignatureStatus(pkg);
+            const canSign = canSignPackage(pkg);
+            const canVerify = canVerifyPackage(pkg);
+            const canRevoke = canRevokePackage(pkg);
+            const canRegenerate = canRegeneratePackage(pkg);
+            
+            return (
+              <Box
+                key={pkg._id}
+                sx={{
+                  p: 2,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
+              >
+                <Grid container alignItems="center" spacing={2}>
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="subtitle2" fontWeight="medium">
+                      {pkg.packageCode}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {pkg.examInfo?.examName || 'N/A'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Centre: {pkg.centreCode}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Created
-                  </Typography>
-                  <Typography variant="body2">
-                    {new Date(pkg.createdAt).toLocaleDateString()}
-                  </Typography>
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Created
+                    </Typography>
+                    <Typography variant="body2">
+                      {new Date(pkg.createdAt || pkg.generationTiming?.completedAt).toLocaleDateString()}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Signature Status
-                  </Typography>
-                  {getSignatureStatusChip(pkg.signatureStatus)}
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Signature Status
+                    </Typography>
+                    {getSignatureStatusChip(sigStatus)}
+                  </Grid>
 
-                <Grid item xs={12} md={3}>
-                  <Typography variant="body2" color="text.secondary">
-                    Actions
-                  </Typography>
-                  <Stack direction="row" spacing={1}>
-                    <Tooltip title="View Package">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewPackage(pkg.id)}
-                      >
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-
-                    {pkg.signatureStatus !== SignatureStatus.SIGNED && 
-                     pkg.signatureStatus !== SignatureStatus.VERIFIED && (
-                      <Tooltip title="Sign">
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      Actions
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Tooltip title="View Package">
                         <IconButton
                           size="small"
-                          color="primary"
-                          onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'sign')}
+                          onClick={() => handleViewPackage(pkg._id)}
                         >
-                          <GppGoodIcon fontSize="small" />
+                          <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                    )}
 
-                    {pkg.signatureStatus === SignatureStatus.SIGNED && (
-                      <Tooltip title="Verify">
-                        <IconButton
-                          size="small"
-                          color="success"
-                          onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'verify')}
-                        >
-                          <VerifiedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-
-                    {(pkg.signatureStatus === SignatureStatus.SIGNED || 
-                      pkg.signatureStatus === SignatureStatus.VERIFIED) && (
-                      <>
-                        <Tooltip title="Regenerate">
+                      {canSign && (
+                        <Tooltip title="Sign Package">
                           <IconButton
                             size="small"
-                            color="warning"
-                            onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'regenerate')}
+                            color="primary"
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode, 'sign')}
                           >
-                            <ReplayIcon fontSize="small" />
+                            <GppGoodIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Revoke">
+                      )}
+
+                      {canVerify && (
+                        <Tooltip title="Verify Signature">
+                          <IconButton
+                            size="small"
+                            color="success"
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode, 'verify')}
+                          >
+                            <VerifiedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {canRevoke && (
+                        <Tooltip title="Revoke Signature">
                           <IconButton
                             size="small"
                             color="error"
-                            onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'revoke')}
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode, 'revoke')}
                           >
                             <CancelIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                      </>
-                    )}
-                  </Stack>
-                </Grid>
+                      )}
 
-                <Grid item xs={12} md={2}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      setSelectedPackageId(pkg.id);
-                      setSelectedPackageCode(pkg.packageCode);
-                      refetchStatus();
-                    }}
-                  >
-                    Check Status
-                  </Button>
+                      {canRegenerate && (
+                        <Tooltip title="Regenerate Signature">
+                          <IconButton
+                            size="small"
+                            color="warning"
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode, 'regenerate')}
+                          >
+                            <ReplayIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleCheckStatus(pkg._id, pkg.packageCode)}
+                      disabled={!pkg._id || pkg._id === 'null'}
+                    >
+                      Check Status
+                    </Button>
+                  </Grid>
                 </Grid>
-              </Grid>
-            </Box>
-          ))
+              </Box>
+            );
+          })
         )}
       </Paper>
 
-      {/* Signature Status Card */}
-      {selectedPackageId && (
+      {/* Signature Status Card (when package selected) */}
+      {selectedPackageId && selectedPackageId !== 'null' && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
             Signature Details: {selectedPackageCode}
@@ -519,7 +672,8 @@ const SignatureManagementPage = () => {
             onRevoke={() => handleOpenDialog(selectedPackageId, selectedPackageCode, 'revoke')}
             onRegenerate={() => handleOpenDialog(selectedPackageId, selectedPackageCode, 'regenerate')}
             canSign={signatureStatus?.status !== SignatureStatus.SIGNED && 
-                     signatureStatus?.status !== SignatureStatus.VERIFIED}
+                     signatureStatus?.status !== SignatureStatus.VERIFIED &&
+                     signatureStatus?.status !== SignatureStatus.SIGNING}
             canVerify={signatureStatus?.status === SignatureStatus.SIGNED}
             canRevoke={signatureStatus?.status === SignatureStatus.SIGNED || 
                        signatureStatus?.status === SignatureStatus.VERIFIED}

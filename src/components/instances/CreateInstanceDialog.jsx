@@ -80,13 +80,19 @@ const CreateInstanceDialog = ({
           </Alert>
         )}
 
+        {examinations.length === 0 && !loading && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            No validated examinations available. Please validate an examination first.
+          </Alert>
+        )}
+
         <FormControl fullWidth sx={{ mb: 2 }}>
           <InputLabel>Select Examination</InputLabel>
           <Select
             value={selectedExam}
             onChange={(e) => setSelectedExam(e.target.value)}
             label="Select Examination"
-            disabled={loading}
+            disabled={loading || examinations.length === 0}
           >
             {examinations.length === 0 ? (
               <MenuItem value="" disabled>
@@ -95,7 +101,7 @@ const CreateInstanceDialog = ({
             ) : (
               examinations.map((exam) => (
                 <MenuItem key={exam._id} value={exam._id}>
-                  {exam.code} - {exam.name}
+                  {exam.code} - {exam.name || exam.title}
                 </MenuItem>
               ))
             )}
@@ -121,7 +127,7 @@ const CreateInstanceDialog = ({
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !selectedExam}
+          disabled={loading || !selectedExam || examinations.length === 0}
           startIcon={loading && <CircularProgress size={20} />}
         >
           {loading ? 'Creating...' : 'Create Instance'}

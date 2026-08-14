@@ -1,12 +1,14 @@
+
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 /**
  * EncryptionManagementPage
  * Main page for managing package encryption
- * 
+ *
  * Location: src/pages/encryption/EncryptionManagementPage.jsx
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from "react";
 import {
   Box,
   Container,
@@ -29,12 +31,7 @@ import {
   Divider,
   IconButton,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-} from '@mui/material';
+} from "@mui/material";
 import {
   NavigateNext as NavigateNextIcon,
   Search as SearchIcon,
@@ -47,9 +44,9 @@ import {
   Pending as PendingIcon,
   Visibility as VisibilityIcon,
   Replay as ReplayIcon,
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
 
 // Hooks
 import {
@@ -57,41 +54,65 @@ import {
   useEncryptPackage,
   useReEncryptPackage,
   useDecryptAsset,
-} from '../../hooks/useEncryption';
+} from "../../hooks/useEncryption";
+
+// Import packages hook
+import { usePackages } from "../../hooks/usePackage";
 
 // Components
-import EncryptionStatusCard from '../../components/encryption/EncryptionStatusCard';
-import EncryptionDialog from '../../components/encryption/EncryptionDialog';
+import EncryptionStatusCard from "../../components/encryption/EncryptionStatusCard";
+import EncryptionDialog from "../../components/encryption/EncryptionDialog";
 
 // Types
 import {
   EncryptionStatus,
   EncryptionStatusLabels,
   EncryptionStatusColors,
-} from '../../types/encryption.types';
+} from "../../types/encryption.types";
+
+// Helper: Format file size
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
 
 const EncryptionManagementPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
   // State
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState(null);
-  const [selectedPackageCode, setSelectedPackageCode] = useState('');
+  const [selectedPackageCode, setSelectedPackageCode] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState('encrypt'); // encrypt, re-encrypt, decrypt
+  const [dialogMode, setDialogMode] = useState("encrypt"); // encrypt, re-encrypt, decrypt
   const [snackbar, setSnackbar] = useState({
     open: false,
-    message: '',
-    severity: 'info',
+    message: "",
+    severity: "info",
   });
 
   // Hooks for encryption operations
-  const { encryptPackage, loading: encrypting, result: encryptResult } = useEncryptPackage();
-  const { reEncryptPackage, loading: reEncrypting, result: reEncryptResult } = useReEncryptPackage();
-  const { decryptAsset, loading: decrypting, result: decryptResult } = useDecryptAsset();
+  const {
+    encryptPackage,
+    loading: encrypting,
+    result: encryptResult,
+  } = useEncryptPackage();
+  const {
+    reEncryptPackage,
+    loading: reEncrypting,
+    result: reEncryptResult,
+  } = useReEncryptPackage();
+  const {
+    decryptAsset,
+    loading: decrypting,
+    result: decryptResult,
+  } = useDecryptAsset();
 
-  // Get encryption status for selected package
+  // ✅ Only enable when selectedPackageId is a valid non-null value
   const {
     data: encryptionStatus,
     loading: statusLoading,
@@ -100,104 +121,73 @@ const EncryptionManagementPage = () => {
     startPolling,
     stopPolling,
     isPolling,
-  } = useEncryptionStatus(selectedPackageId, {
-    enabled: !!selectedPackageId,
-    autoPoll: false,
-  });
-
-  // Mock packages data - replace with actual API call
-  const packages = [
+  } = useEncryptionStatus(
+    selectedPackageId && selectedPackageId !== "null"
+      ? selectedPackageId
+      : null,
     {
-      id: '1',
-      packageCode: 'PROMO-2027-ABJ001-V1',
-      examName: 'Promotion Examination 2027',
-      centreCode: 'ABJ001',
-      status: 'ENCRYPTED',
-      createdAt: '2026-08-01T21:14:01.468Z',
-      encryptionStatus: EncryptionStatus.ENCRYPTED,
+      enabled:
+        !!selectedPackageId &&
+        selectedPackageId !== "null" &&
+        selectedPackageId !== null,
+      autoPoll: false,
     },
-    {
-      id: '2',
-      packageCode: 'PROMO-2027-LAG002-V1',
-      examName: 'Promotion Examination 2027',
-      centreCode: 'LAG002',
-      status: 'GENERATED',
-      createdAt: '2026-08-02T10:30:00.000Z',
-      encryptionStatus: EncryptionStatus.PENDING,
-    },
-  ];
+  );
 
-  // Handlers
-  const handleOpenDialog = (packageId, packageCode, mode) => {
-    setSelectedPackageId(packageId);
-    setSelectedPackageCode(packageCode);
-    setDialogMode(mode);
-    setDialogOpen(true);
-    // Start polling for status updates when encrypting
-    if (mode === 'encrypt' || mode === 're-encrypt') {
-      startPolling(3000);
+  // ✅ Memoize filter params to prevent infinite re-renders
+  const packageParams = useMemo(
+    () => ({
+      page: 1,
+      limit: 100,
+      search: searchQuery || undefined,
+    }),
+    [searchQuery],
+  );
+
+  // Get packages with memoized params
+  const {
+    data: packagesData,
+    loading: packagesLoading,
+    error: packagesError,
+    refetch: refetchPackages,
+  } = usePackages(packageParams);
+
+  const packages = packagesData?.data || [];
+
+  // ============================================================
+  // ✅ HELPER FUNCTIONS (defined first)
+  // ============================================================
+
+  // ✅ Determine encryption status from package data
+  const getPackageEncryptionStatus = useCallback((pkg) => {
+    if (pkg.encryptionStatus) {
+      return pkg.encryptionStatus;
     }
-  };
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    stopPolling();
-    // Refresh status after closing
-    if (selectedPackageId) {
-      refetchStatus();
+    if (pkg.status === "ENCRYPTED") {
+      return EncryptionStatus.ENCRYPTED;
     }
-  };
-
-  const handleEncrypt = async (packageId) => {
-    try {
-      await encryptPackage(packageId);
-      showSnackbar('Package encrypted successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to encrypt package', 'error');
+    if (pkg.status === "ENCRYPTING") {
+      return EncryptionStatus.ENCRYPTING;
     }
-  };
-
-  const handleReEncrypt = async (packageId) => {
-    try {
-      await reEncryptPackage(packageId);
-      showSnackbar('Package re-encrypted successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to re-encrypt package', 'error');
+    if (pkg.status === "FAILED") {
+      return EncryptionStatus.FAILED;
     }
-  };
-
-  const handleDecrypt = async (packageId, assetType) => {
-    try {
-      await decryptAsset(packageId, assetType);
-      showSnackbar('Asset decrypted successfully!', 'success');
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to decrypt asset', 'error');
+    if (pkg.status === "GENERATED" || pkg.status === "READY_FOR_ENCRYPTION") {
+      return EncryptionStatus.PENDING;
     }
-  };
+    return EncryptionStatus.PENDING;
+  }, []);
 
-  const showSnackbar = (message, severity = 'info') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ open: false, message: '', severity: 'info' });
-  };
-
-  const handleViewPackage = (packageId) => {
-    navigate(`/packages/${packageId}`);
-  };
-
-  const getEncryptionStatusChip = (status) => {
+  const getEncryptionStatusChip = useCallback((status) => {
     const label = EncryptionStatusLabels[status] || status;
-    const color = EncryptionStatusColors[status] || '#9e9e9e';
+    const color = EncryptionStatusColors[status] || "#9e9e9e";
 
     let icon = null;
     if (status === EncryptionStatus.ENCRYPTED) icon = <LockIcon />;
     else if (status === EncryptionStatus.PENDING) icon = <PendingIcon />;
     else if (status === EncryptionStatus.FAILED) icon = <ErrorIcon />;
     else if (status === EncryptionStatus.DECRYPTED) icon = <LockOpenIcon />;
+    else if (status === EncryptionStatus.ENCRYPTING) icon = <PendingIcon />;
 
     return (
       <Chip
@@ -206,28 +196,194 @@ const EncryptionManagementPage = () => {
         size="small"
         sx={{
           bgcolor: color,
-          color: 'white',
-          '& .MuiChip-icon': { color: 'white' },
+          color: "white",
+          "& .MuiChip-icon": { color: "white" },
         }}
       />
     );
-  };
+  }, []);
 
-  // Filter packages
-  const filteredPackages = packages.filter(
-    (pkg) =>
-      pkg.packageCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.examName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.centreCode.toLowerCase().includes(searchQuery.toLowerCase())
+  // ✅ Check if package can be encrypted
+  const canEncryptPackage = useCallback(
+    (pkg) => {
+      const status = getPackageEncryptionStatus(pkg);
+      return (
+        status !== EncryptionStatus.ENCRYPTED &&
+        status !== EncryptionStatus.ENCRYPTING &&
+        pkg.status !== "FAILED"
+      );
+    },
+    [getPackageEncryptionStatus],
   );
 
-  // Statistics
-  const stats = {
-    total: packages.length,
-    encrypted: packages.filter(p => p.encryptionStatus === EncryptionStatus.ENCRYPTED).length,
-    pending: packages.filter(p => p.encryptionStatus === EncryptionStatus.PENDING).length,
-    failed: packages.filter(p => p.encryptionStatus === EncryptionStatus.FAILED).length,
-  };
+  // ✅ Check if package can be re-encrypted
+  const canReEncryptPackage = useCallback(
+    (pkg) => {
+      const status = getPackageEncryptionStatus(pkg);
+      return status === EncryptionStatus.ENCRYPTED;
+    },
+    [getPackageEncryptionStatus],
+  );
+
+  // ✅ Check if package can be decrypted
+  const canDecryptPackage = useCallback(
+    (pkg) => {
+      const status = getPackageEncryptionStatus(pkg);
+      return status === EncryptionStatus.ENCRYPTED;
+    },
+    [getPackageEncryptionStatus],
+  );
+
+  // ============================================================
+  // ✅ SNACKBAR FUNCTIONS (defined before being used)
+  // ============================================================
+
+  const showSnackbar = useCallback((message, severity = "info") => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleCloseSnackbar = useCallback(() => {
+    setSnackbar({ open: false, message: "", severity: "info" });
+  }, []);
+
+  // ============================================================
+  // ✅ HANDLERS (defined after showSnackbar)
+  // ============================================================
+
+  const handleOpenDialog = useCallback(
+    (packageId, packageCode, mode) => {
+      if (!packageId || packageId === "null") {
+        showSnackbar("Invalid package selected", "error");
+        return;
+      }
+      setSelectedPackageId(packageId);
+      setSelectedPackageCode(packageCode);
+      setDialogMode(mode);
+      setDialogOpen(true);
+      if (mode === "encrypt" || mode === "re-encrypt") {
+        startPolling(3000);
+      }
+    },
+    [startPolling, showSnackbar],
+  );
+
+  const handleCloseDialog = useCallback(() => {
+    setDialogOpen(false);
+    stopPolling();
+    if (selectedPackageId && selectedPackageId !== "null") {
+      refetchStatus();
+    }
+    refetchPackages();
+  }, [selectedPackageId, refetchStatus, refetchPackages, stopPolling]);
+
+  const handleEncrypt = useCallback(
+    async (packageId) => {
+      if (!packageId || packageId === "null") {
+        showSnackbar("Invalid package selected", "error");
+        return;
+      }
+      try {
+        await encryptPackage(packageId);
+        showSnackbar("Package encrypted successfully!", "success");
+        refetchStatus();
+        refetchPackages();
+      } catch (error) {
+        showSnackbar(error.message || "Failed to encrypt package", "error");
+      }
+    },
+    [encryptPackage, refetchStatus, refetchPackages, showSnackbar],
+  );
+
+  const handleReEncrypt = useCallback(
+    async (packageId) => {
+      if (!packageId || packageId === "null") {
+        showSnackbar("Invalid package selected", "error");
+        return;
+      }
+      try {
+        await reEncryptPackage(packageId);
+        showSnackbar("Package re-encrypted successfully!", "success");
+        refetchStatus();
+        refetchPackages();
+      } catch (error) {
+        showSnackbar(error.message || "Failed to re-encrypt package", "error");
+      }
+    },
+    [reEncryptPackage, refetchStatus, refetchPackages, showSnackbar],
+  );
+
+  const handleDecrypt = useCallback(
+    async (packageId, assetType) => {
+      if (!packageId || packageId === "null") {
+        showSnackbar("Invalid package selected", "error");
+        return;
+      }
+      try {
+        await decryptAsset(packageId, assetType);
+        showSnackbar("Asset decrypted successfully!", "success");
+      } catch (error) {
+        showSnackbar(error.message || "Failed to decrypt asset", "error");
+      }
+    },
+    [decryptAsset, showSnackbar],
+  );
+
+  const handleViewPackage = useCallback(
+    (packageId) => {
+      navigate(`/packages/${packageId}`);
+    },
+    [navigate],
+  );
+
+  const handleRefresh = useCallback(() => {
+    if (selectedPackageId && selectedPackageId !== "null") {
+      refetchStatus();
+    }
+    refetchPackages();
+    showSnackbar("Refreshed successfully", "success");
+  }, [selectedPackageId, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleCheckStatus = useCallback(
+    (packageId, packageCode) => {
+      if (!packageId || packageId === "null") {
+        showSnackbar("Invalid package selected", "error");
+        return;
+      }
+      setSelectedPackageId(packageId);
+      setSelectedPackageCode(packageCode);
+    },
+    [refetchStatus, showSnackbar],
+  );
+
+  // ============================================================
+  // ✅ STATISTICS
+  // ============================================================
+
+  const stats = useMemo(() => {
+    const total = packages.length;
+    const encrypted = packages.filter(
+      (p) =>
+        getPackageEncryptionStatus(p) === EncryptionStatus.ENCRYPTED ||
+        p.status === "ENCRYPTED",
+    ).length;
+    const pending = packages.filter(
+      (p) =>
+        getPackageEncryptionStatus(p) === EncryptionStatus.PENDING ||
+        p.status === "GENERATED" ||
+        p.status === "READY_FOR_ENCRYPTION",
+    ).length;
+    const failed = packages.filter(
+      (p) =>
+        getPackageEncryptionStatus(p) === EncryptionStatus.FAILED ||
+        p.status === "FAILED",
+    ).length;
+
+    return { total, encrypted, pending, failed };
+  }, [packages, getPackageEncryptionStatus]);
+
+  // ============================================================
+  // ✅ RENDER
+  // ============================================================
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -241,7 +397,7 @@ const EncryptionManagementPage = () => {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            navigate('/dashboard');
+            navigate("/dashboard");
           }}
         >
           Dashboard
@@ -251,7 +407,7 @@ const EncryptionManagementPage = () => {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            navigate('/packages');
+            navigate("/packages");
           }}
         >
           Packages
@@ -260,7 +416,14 @@ const EncryptionManagementPage = () => {
       </Breadcrumbs>
 
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 4,
+        }}
+      >
         <Box>
           <Typography variant="h4" fontWeight="bold">
             Encryption Management
@@ -272,12 +435,8 @@ const EncryptionManagementPage = () => {
         <Button
           variant="contained"
           startIcon={<RefreshIcon />}
-          onClick={() => {
-            if (selectedPackageId) {
-              refetchStatus();
-            }
-            showSnackbar('Refreshed successfully', 'success');
-          }}
+          onClick={handleRefresh}
+          disabled={packagesLoading}
         >
           Refresh
         </Button>
@@ -353,131 +512,165 @@ const EncryptionManagementPage = () => {
       </Paper>
 
       {/* Package List */}
-      <Paper sx={{ overflow: 'hidden' }}>
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Paper sx={{ overflow: "hidden" }}>
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
           <Typography variant="h6">Packages</Typography>
         </Box>
 
-        {filteredPackages.length === 0 ? (
-          <Box sx={{ p: 4, textAlign: 'center' }}>
+        {packagesLoading && packages.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: "center" }}>
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading packages...</Typography>
+          </Box>
+        ) : packages.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: "center" }}>
             <Typography color="text.secondary">
-              {searchQuery ? 'No packages match your search' : 'No packages found'}
+              {searchQuery
+                ? "No packages match your search"
+                : "No packages found"}
             </Typography>
           </Box>
         ) : (
-          filteredPackages.map((pkg) => (
-            <Box
-              key={pkg.id}
-              sx={{
-                p: 2,
-                borderBottom: 1,
-                borderColor: 'divider',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                },
-              }}
-            >
-              <Grid container alignItems="center" spacing={2}>
-                <Grid item xs={12} md={3}>
-                  <Typography variant="subtitle2" fontWeight="medium">
-                    {pkg.packageCode}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {pkg.examName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Centre: {pkg.centreCode}
-                  </Typography>
-                </Grid>
+          packages.map((pkg) => {
+            const encStatus = getPackageEncryptionStatus(pkg);
+            const canEncrypt = canEncryptPackage(pkg);
+            const canReEncrypt = canReEncryptPackage(pkg);
+            const canDecrypt = canDecryptPackage(pkg);
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Created
-                  </Typography>
-                  <Typography variant="body2">
-                    {new Date(pkg.createdAt).toLocaleDateString()}
-                  </Typography>
-                </Grid>
+            return (
+              <Box
+                key={pkg._id}
+                sx={{
+                  p: 2,
+                  borderBottom: 1,
+                  borderColor: "divider",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                  },
+                }}
+              >
+                <Grid container alignItems="center" spacing={2}>
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="subtitle2" fontWeight="medium">
+                      {pkg.packageCode}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {pkg.examInfo?.examName || "N/A"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Centre: {pkg.centreCode}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Encryption Status
-                  </Typography>
-                  {getEncryptionStatusChip(pkg.encryptionStatus)}
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Created
+                    </Typography>
+                    <Typography variant="body2">
+                      {new Date(
+                        pkg.createdAt || pkg.generationTiming?.completedAt,
+                      ).toLocaleDateString()}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={3}>
-                  <Typography variant="body2" color="text.secondary">
-                    Actions
-                  </Typography>
-                  <Stack direction="row" spacing={1}>
-                    <Tooltip title="View Package">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewPackage(pkg.id)}
-                      >
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Encryption Status
+                    </Typography>
+                    {getEncryptionStatusChip(encStatus)}
+                  </Grid>
 
-                    {pkg.encryptionStatus !== EncryptionStatus.ENCRYPTED && (
-                      <Tooltip title="Encrypt">
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      Actions
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Tooltip title="View Package">
                         <IconButton
                           size="small"
-                          color="primary"
-                          onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'encrypt')}
+                          onClick={() => handleViewPackage(pkg._id)}
                         >
-                          <LockIcon fontSize="small" />
+                          <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                    )}
 
-                    {pkg.encryptionStatus === EncryptionStatus.ENCRYPTED && (
-                      <>
+                      {canEncrypt && (
+                        <Tooltip title="Encrypt Package">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() =>
+                              handleOpenDialog(
+                                pkg._id,
+                                pkg.packageCode,
+                                "encrypt",
+                              )
+                            }
+                          >
+                            <LockIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {canReEncrypt && (
                         <Tooltip title="Re-encrypt (Key Rotation)">
                           <IconButton
                             size="small"
                             color="warning"
-                            onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 're-encrypt')}
+                            onClick={() =>
+                              handleOpenDialog(
+                                pkg._id,
+                                pkg.packageCode,
+                                "re-encrypt",
+                              )
+                            }
                           >
                             <ReplayIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                      )}
+
+                      {canDecrypt && (
                         <Tooltip title="Decrypt Asset">
                           <IconButton
                             size="small"
                             color="info"
-                            onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'decrypt')}
+                            onClick={() =>
+                              handleOpenDialog(
+                                pkg._id,
+                                pkg.packageCode,
+                                "decrypt",
+                              )
+                            }
                           >
                             <LockOpenIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                      </>
-                    )}
-                  </Stack>
-                </Grid>
+                      )}
+                    </Stack>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      setSelectedPackageId(pkg.id);
-                      setSelectedPackageCode(pkg.packageCode);
-                      refetchStatus();
-                    }}
-                  >
-                    Check Status
-                  </Button>
+                  <Grid item xs={12} md={2}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() =>
+                        handleCheckStatus(pkg._id, pkg.packageCode)
+                      }
+                      disabled={!pkg._id || pkg._id === "null"}
+                    >
+                      Check Status
+                    </Button>
+                  </Grid>
                 </Grid>
-              </Grid>
-            </Box>
-          ))
+              </Box>
+            );
+          })
         )}
       </Paper>
 
       {/* Encryption Status Card (when package selected) */}
-      {selectedPackageId && (
+      {selectedPackageId && selectedPackageId !== "null" && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
             Encryption Details: {selectedPackageCode}
@@ -486,11 +679,31 @@ const EncryptionManagementPage = () => {
             status={encryptionStatus}
             loading={statusLoading}
             onRefresh={refetchStatus}
-            onEncrypt={() => handleOpenDialog(selectedPackageId, selectedPackageCode, 'encrypt')}
-            onReEncrypt={() => handleOpenDialog(selectedPackageId, selectedPackageCode, 're-encrypt')}
-            onDecryptAsset={() => handleOpenDialog(selectedPackageId, selectedPackageCode, 'decrypt')}
+            onEncrypt={() =>
+              handleOpenDialog(
+                selectedPackageId,
+                selectedPackageCode,
+                "encrypt",
+              )
+            }
+            onReEncrypt={() =>
+              handleOpenDialog(
+                selectedPackageId,
+                selectedPackageCode,
+                "re-encrypt",
+              )
+            }
+            onDecryptAsset={() =>
+              handleOpenDialog(
+                selectedPackageId,
+                selectedPackageCode,
+                "decrypt",
+              )
+            }
             canEncrypt={encryptionStatus?.status !== EncryptionStatus.ENCRYPTED}
-            canReEncrypt={encryptionStatus?.status === EncryptionStatus.ENCRYPTED}
+            canReEncrypt={
+              encryptionStatus?.status === EncryptionStatus.ENCRYPTED
+            }
             canDecrypt={encryptionStatus?.status === EncryptionStatus.ENCRYPTED}
           />
         </Box>
@@ -517,9 +730,13 @@ const EncryptionManagementPage = () => {
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <Alert severity={snackbar.severity} onClose={handleCloseSnackbar} variant="filled">
+        <Alert
+          severity={snackbar.severity}
+          onClose={handleCloseSnackbar}
+          variant="filled"
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>
@@ -529,12 +746,16 @@ const EncryptionManagementPage = () => {
         open={encrypting || reEncrypting || decrypting}
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
-        <Box sx={{ textAlign: 'center', color: 'white' }}>
+        <Box sx={{ textAlign: "center", color: "white" }}>
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {encrypting ? 'Encrypting package...' : 
-             reEncrypting ? 'Re-encrypting package...' : 
-             decrypting ? 'Decrypting asset...' : 'Processing...'}
+            {encrypting
+              ? "Encrypting package..."
+              : reEncrypting
+                ? "Re-encrypting package..."
+                : decrypting
+                  ? "Decrypting asset..."
+                  : "Processing..."}
           </Typography>
         </Box>
       </Backdrop>

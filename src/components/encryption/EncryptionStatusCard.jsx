@@ -2,11 +2,11 @@
 /**
  * EncryptionStatusCard
  * Displays encryption status for a package
- * 
+ *
  * Location: src/components/encryption/EncryptionStatusCard.jsx
  */
 
-import React from 'react';
+import React from "react";
 import {
   Card,
   CardContent,
@@ -18,7 +18,7 @@ import {
   LinearProgress,
   IconButton,
   Tooltip,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Lock as LockIcon,
   LockOpen as LockOpenIcon,
@@ -27,13 +27,13 @@ import {
   Error as ErrorIcon,
   Pending as PendingIcon,
   Security as SecurityIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 import {
   EncryptionStatus,
   EncryptionStatusLabels,
   EncryptionStatusColors,
   AssetTypeLabels,
-} from '../../types/encryption.types';
+} from "../../types/encryption.types";
 
 const EncryptionStatusCard = ({
   status,
@@ -48,8 +48,8 @@ const EncryptionStatusCard = ({
 }) => {
   const getStatusChip = (status) => {
     const label = EncryptionStatusLabels[status] || status;
-    const color = EncryptionStatusColors[status] || '#9e9e9e';
-    
+    const color = EncryptionStatusColors[status] || "#9e9e9e";
+
     let icon = null;
     if (status === EncryptionStatus.ENCRYPTED) {
       icon = <LockIcon />;
@@ -62,15 +62,15 @@ const EncryptionStatusCard = ({
     } else if (status === EncryptionStatus.ENCRYPTING) {
       icon = <PendingIcon />;
     }
-    
+
     return (
       <Chip
         icon={icon}
         label={label}
         sx={{
           bgcolor: color,
-          color: 'white',
-          '& .MuiChip-icon': { color: 'white' },
+          color: "white",
+          "& .MuiChip-icon": { color: "white" },
         }}
       />
     );
@@ -81,7 +81,7 @@ const EncryptionStatusCard = ({
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            <SecurityIcon sx={{ mr: 1, verticalAlign: "middle" }} />
             Encryption Status
           </Typography>
           <LinearProgress />
@@ -96,7 +96,7 @@ const EncryptionStatusCard = ({
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            <SecurityIcon sx={{ mr: 1, verticalAlign: "middle" }} />
             Encryption Status
           </Typography>
           <Typography color="text.secondary">
@@ -112,15 +112,23 @@ const EncryptionStatusCard = ({
 
   const isEncrypted = status.status === EncryptionStatus.ENCRYPTED;
   const isFailed = status.status === EncryptionStatus.FAILED;
-  const isPending = status.status === EncryptionStatus.PENDING || 
-                    status.status === EncryptionStatus.ENCRYPTING;
+  const isPending =
+    status.status === EncryptionStatus.PENDING ||
+    status.status === EncryptionStatus.ENCRYPTING;
 
   return (
     <Card>
       <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
           <Typography variant="h6">
-            <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            <SecurityIcon sx={{ mr: 1, verticalAlign: "middle" }} />
             Encryption Status
           </Typography>
           <Box>
@@ -132,7 +140,14 @@ const EncryptionStatusCard = ({
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
           <Typography variant="body2" color="text.secondary">
             Status
           </Typography>
@@ -142,25 +157,25 @@ const EncryptionStatusCard = ({
         <Divider sx={{ my: 1.5 }} />
 
         <Stack spacing={1}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
             <Typography variant="body2" color="text.secondary">
               Algorithm
             </Typography>
             <Typography variant="body2" fontWeight="medium">
-              {status.algorithm || 'AES-256-GCM'}
+              {status.algorithm || "AES-256-GCM"}
             </Typography>
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
             <Typography variant="body2" color="text.secondary">
               Version
             </Typography>
             <Typography variant="body2">
-              {status.encryptionVersion || '1.0.0'}
+              {status.encryptionVersion || "1.0.0"}
             </Typography>
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
             <Typography variant="body2" color="text.secondary">
               Encrypted Files
             </Typography>
@@ -170,7 +185,7 @@ const EncryptionStatusCard = ({
           </Box>
 
           {status.totalEncryptedSize > 0 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
               <Typography variant="body2" color="text.secondary">
                 Total Size
               </Typography>
@@ -181,7 +196,7 @@ const EncryptionStatusCard = ({
           )}
 
           {status.encryptedAt && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
               <Typography variant="body2" color="text.secondary">
                 Encrypted At
               </Typography>
@@ -192,19 +207,21 @@ const EncryptionStatusCard = ({
           )}
 
           {status.encryptedBy && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
               <Typography variant="body2" color="text.secondary">
                 Encrypted By
               </Typography>
               <Typography variant="body2">
-                {status.encryptedBy}
+                {status.encryptedBy?.name ||
+                  status.encryptedBy?.email ||
+                  "Unknown"}
               </Typography>
             </Box>
           )}
         </Stack>
 
         {/* Actions */}
-        <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
           {!isEncrypted && !isPending && canEncrypt && (
             <Chip
               label="Encrypt Package"
@@ -242,11 +259,11 @@ const EncryptionStatusCard = ({
 
 // Helper: Format file size
 const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
 export default EncryptionStatusCard;

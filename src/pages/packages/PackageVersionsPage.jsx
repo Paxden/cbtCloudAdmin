@@ -1,308 +1,451 @@
 /* eslint-disable no-unused-vars */
-/* eslint-disable no-undef */
+
 /**
- * PackageVersionsPage
- * Main page for package version management
+ * PackageVersionManagementPage
+ * Main page for managing package versions
  * 
- * Location: src/pages/package/PackageVersionsPage.jsx
+ * Location: src/pages/version/PackageVersionManagementPage.jsx
  */
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Container,
   Breadcrumbs,
   Link,
   Typography,
+  Paper,
+  Button,
   Alert,
   Snackbar,
   CircularProgress,
   Backdrop,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
   TextField,
-  IconButton,
+  InputAdornment,
+  Chip,
+  Card,
+  CardContent,
   Grid,
-  Paper
+  Stack,
+  Divider,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
-import { NavigateNext as NavigateNextIcon, Close as CloseIcon } from '@mui/icons-material';
-import { usePackageVersions } from '../../hooks/usePackageVersions';
+import {
+  NavigateNext as NavigateNextIcon,
+  Search as SearchIcon,
+  Refresh as RefreshIcon,
+  Add as AddIcon,
+  CompareArrows as CompareIcon,
+  History as HistoryIcon,
+} from '@mui/icons-material';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
+// Hooks
+import {
+  usePackageVersions,
+  useCreateVersion,
+  useActivateVersion,
+  useArchiveVersion,
+  useRevokeVersion,
+  useCompareVersions,
+} from '../../hooks/useVersion';
+
+// Import packages hook
+import { usePackageById } from '../../hooks/usePackage';
+
 // Components
-import VersionSummaryCards from '../../components/packageVersions/VersionSummaryCards';
-import VersionToolbar from '../../components/packageVersions/VersionToolbar';
-import VersionFilters from '../../components/packageVersions/VersionFilters';
-import VersionTable from '../../components/packageVersions/VersionTable';
-import VersionDetailsDrawer from '../../components/packageVersions/VersionDetailsDrawer';
-import VersionTimeline from '../../components/packageVersions/VersionTimeline';
-import VersionComparisonDialog from '../../components/packageVersions/VersionComparisonDialog';
-import RegeneratePackageDialog from '../../components/packageVersions/RegeneratePackageDialog';
+import VersionList from '../../components/version/VersionList';
+import VersionStatusChip from '../../components/version/VersionStatusChip';
+import CreateVersionDialog from '../../components/version/CreateVersionDialog';
+import CompareVersionsDialog from '../../components/version/CompareVersionsDialog';
+import VersionDetailsDrawer from '../../components/version/VersionDetailsDrawer';
 
-const PAGE_TITLE = 'Package Versions';
+// Types
+import { VersionStatus, VersionStatusLabels } from '../../types/version.types';
 
-const getUserRole = (user) => {
-  if (!user) return 'GUEST';
-  if (typeof user.role === 'string') return user.role;
-  if (user.role && typeof user.role === 'object') return user.role.name || 'USER';
-  return 'USER';
-};
-
-const PackageVersionsPage = () => {
+const PackageVersionManagementPage = () => {
   const navigate = useNavigate();
+  const { packageId } = useParams();
   const { user } = useAuth();
-  const userRole = getUserRole(user);
 
-  const canRegenerate = userRole === 'SUPER_ADMIN' || userRole === 'TECH_ADMIN';
-  const canArchive = userRole === 'SUPER_ADMIN' || userRole === 'TECH_ADMIN';
-  const canView = userRole === 'SUPER_ADMIN' || userRole === 'TECH_ADMIN' || userRole === 'EXAM_MANAGER';
-
-  const {
-    versions,
-    totalVersions,
-    selectedVersion,
-    statistics,
-    timeline,
-    comparisonResult,
-    filters,
-    isLoading,
-    loadingDetails,
-    loadingStatistics,
-    loadingTimeline,
-    comparing,
-    regenerating,
-    detailsDrawerOpen,
-    comparisonDialogOpen,
-    regenerateDialogOpen,
-    timelineDialogOpen,
-    archiveDialogOpen,
-    archiveReason,
-    updateFilters,
-    resetFilters,
-    handlePageChange,
-    handleRowsPerPageChange,
-    openDetails,
-    closeDetails,
-    openTimeline,
-    closeTimeline,
-    openComparison,
-    closeComparison,
-    openRegenerate,
-    closeRegenerate,
-    openArchive,
-    closeArchive,
-    handleRegenerate,
-    handleArchive,
-    exportReport,
-    setArchiveReason,
-    refresh
-  } = usePackageVersions();
-
+  // State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedVersionId, setSelectedVersionId] = useState(null);
+  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
-    severity: 'success'
+    severity: 'info',
   });
-  const [actionLoading, setActionLoading] = useState(false);
 
-  const filterCount = Object.keys(filters).filter(
-    key => !['page', 'limit', 'sort'].includes(key) && filters[key] && filters[key] !== ''
-  ).length;
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const [limit, setLimit] = useState(10);
 
-  const showSnackbar = (message, severity = 'success') => {
+  // Get package details
+  const {
+    data: packageData,
+    loading: packageLoading,
+    error: packageError,
+    refetch: refetchPackage,
+  } = usePackageById(packageId, {
+    enabled: !!packageId,
+  });
+
+  // Get versions
+  const versionsParams = useMemo(() => ({
+    status: statusFilter || undefined,
+    limit,
+    page: page + 1,
+  }), [statusFilter, limit, page]);
+
+  const {
+    data: versionsData,
+    loading: versionsLoading,
+    error: versionsError,
+    refetch: refetchVersions,
+  } = usePackageVersions(packageId, versionsParams, {
+    enabled: !!packageId,
+  });
+
+  // Mutations
+  const { createVersion, loading: creating, result: createResult } = useCreateVersion();
+  const { activateVersion, loading: activating } = useActivateVersion();
+  const { archiveVersion, loading: archiving } = useArchiveVersion();
+  const { revokeVersion, loading: revoking } = useRevokeVersion();
+  const { compareVersions, loading: comparing, result: compareResult } = useCompareVersions();
+
+  const versions = versionsData?.data || [];
+  const totalVersions = versionsData?.total || 0;
+
+  // ============================================================
+  // ✅ SNACKBAR FUNCTIONS
+  // ============================================================
+
+  const showSnackbar = useCallback((message, severity = 'info') => {
     setSnackbar({ open: true, message, severity });
-  };
+  }, []);
 
-  const handleRegenerateConfirm = async (options) => {
+  const handleCloseSnackbar = useCallback(() => {
+    setSnackbar({ open: false, message: '', severity: 'info' });
+  }, []);
+
+  // ============================================================
+  // ✅ HANDLERS
+  // ============================================================
+
+  const handleRefresh = useCallback(() => {
+    refetchVersions();
+    refetchPackage();
+    showSnackbar('Refreshed successfully', 'success');
+  }, [refetchVersions, refetchPackage, showSnackbar]);
+
+  const handleViewVersion = useCallback((versionId) => {
+    setSelectedVersionId(versionId);
+    setDetailsDrawerOpen(true);
+  }, []);
+
+  const handleCloseDetails = useCallback(() => {
+    setDetailsDrawerOpen(false);
+    setSelectedVersionId(null);
+  }, []);
+
+  const handleCreateVersion = useCallback(async (pkgId, data) => {
     try {
-      setActionLoading(true);
-      await handleRegenerate(options);
-      showSnackbar('Package regenerated successfully', 'success');
-      closeRegenerate();
-    } catch (err) {
-      showSnackbar(err.message || 'Failed to regenerate package', 'error');
-    } finally {
-      setActionLoading(false);
+      await createVersion(pkgId, data);
+      showSnackbar('Version created successfully!', 'success');
+      setCreateDialogOpen(false);
+      refetchVersions();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to create version', 'error');
     }
-  };
+  }, [createVersion, refetchVersions, showSnackbar]);
 
-  const handleArchiveConfirm = async () => {
+  const handleActivateVersion = useCallback(async (versionId) => {
     try {
-      setActionLoading(true);
-      await handleArchive();
-      showSnackbar('Version archived successfully', 'success');
-      closeArchive();
-    } catch (err) {
-      showSnackbar(err.message || 'Failed to archive version', 'error');
-    } finally {
-      setActionLoading(false);
+      await activateVersion(versionId);
+      showSnackbar('Version activated successfully!', 'success');
+      refetchVersions();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to activate version', 'error');
     }
-  };
+  }, [activateVersion, refetchVersions, showSnackbar]);
 
-  if (!canView) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 3 }}>
-        <Alert severity="error">
-          You do not have permission to access this page.
-        </Alert>
-      </Container>
-    );
-  }
+  const handleArchiveVersion = useCallback(async (versionId) => {
+    const reason = prompt('Please provide a reason for archiving this version:');
+    if (reason !== null) {
+      try {
+        await archiveVersion(versionId, reason);
+        showSnackbar('Version archived successfully!', 'success');
+        refetchVersions();
+      } catch (error) {
+        showSnackbar(error.message || 'Failed to archive version', 'error');
+      }
+    }
+  }, [archiveVersion, refetchVersions, showSnackbar]);
+
+  const handleRevokeVersion = useCallback(async (versionId) => {
+    const reason = prompt('Please provide a reason for revoking this version:');
+    if (reason !== null) {
+      try {
+        await revokeVersion(versionId, reason);
+        showSnackbar('Version revoked successfully!', 'success');
+        refetchVersions();
+      } catch (error) {
+        showSnackbar(error.message || 'Failed to revoke version', 'error');
+      }
+    }
+  }, [revokeVersion, refetchVersions, showSnackbar]);
+
+  const handleCompareVersions = useCallback((versionId) => {
+    setSelectedVersionId(versionId);
+    setCompareDialogOpen(true);
+  }, []);
+
+  const handleCompare = useCallback(async (versionA, versionB) => {
+    try {
+      await compareVersions(versionA, versionB);
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to compare versions', 'error');
+    }
+  }, [compareVersions, showSnackbar]);
+
+  // ============================================================
+  // ✅ RENDER
+  // ============================================================
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 2 }}>
-        <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer' }}>
+      {/* Breadcrumbs */}
+      <Breadcrumbs
+        separator={<NavigateNextIcon fontSize="small" />}
+        sx={{ mb: 3 }}
+      >
+        <Link
+          color="inherit"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('/dashboard');
+          }}
+        >
           Dashboard
         </Link>
-        <Link color="inherit" onClick={() => navigate('/packages')} sx={{ cursor: 'pointer' }}>
+        <Link
+          color="inherit"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('/packages');
+          }}
+        >
           Packages
         </Link>
-        <Typography color="text.primary">{PAGE_TITLE}</Typography>
+        <Typography color="text.primary">Version Management</Typography>
       </Breadcrumbs>
 
-      <VersionSummaryCards statistics={statistics} loading={loadingStatistics} />
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Box>
+          <Typography variant="h4" fontWeight="bold">
+            Package Versions
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {packageData?.packageCode || packageId}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={handleRefresh}
+            disabled={versionsLoading}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            Create Version
+          </Button>
+        </Box>
+      </Box>
 
-      <VersionToolbar
-        onRefresh={refresh}
-        onRegenerate={() => {
-          const activeVersion = versions.find(v => v.status === 'ACTIVE');
-          if (activeVersion) {
-            openRegenerate(activeVersion._id);
-          } else {
-            showSnackbar('No active version available for regeneration', 'warning');
-          }
-        }}
-        onExport={exportReport}
-        totalCount={totalVersions}
-        loading={isLoading}
-        filterCount={filterCount}
-        canRegenerate={canRegenerate}
-      />
+      {/* Stats */}
+      {packageData && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="subtitle2">
+                  Current Version
+                </Typography>
+                <Typography variant="h4" fontWeight="bold">
+                  {packageData.currentVersionLabel || 'v1'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="subtitle2">
+                  Total Versions
+                </Typography>
+                <Typography variant="h4" fontWeight="bold">
+                  {totalVersions}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="subtitle2">
+                  Active Version
+                </Typography>
+                <Typography variant="h4" fontWeight="bold" color="success.main">
+                  {versions.find(v => v.status === VersionStatus.ACTIVE)?.versionLabel || 'None'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="subtitle2">
+                  Status
+                </Typography>
+                <VersionStatusChip status={packageData.status || VersionStatus.GENERATED} />
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
 
-      <VersionFilters
-        filters={filters}
-        onFilterChange={updateFilters}
-        onReset={resetFilters}
-      />
+      {/* Search and Filters */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <TextField
+            placeholder="Search versions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size="small"
+            sx={{ flex: 1, minWidth: 200 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <TextField
+            select
+            label="Status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            size="small"
+            sx={{ minWidth: 150 }}
+            SelectProps={{
+              native: true,
+            }}
+          >
+            <option value="">All Statuses</option>
+            {Object.entries(VersionStatusLabels).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </TextField>
+        </Box>
+      </Paper>
 
-      <VersionTable
+      {/* Version List */}
+      <VersionList
         versions={versions}
         total={totalVersions}
-        page={filters.page}
-        limit={filters.limit}
-        loading={isLoading}
-        onPageChange={handlePageChange}
-        onRowsPerPageChange={handleRowsPerPageChange}
-        onViewDetails={openDetails}
-        onCompare={openComparison}
-        onRegenerate={openRegenerate}
-        onViewTimeline={openTimeline}
-        onArchive={openArchive}
-        canRegenerate={canRegenerate}
-        canArchive={canArchive}
+        page={page}
+        limit={limit}
+        loading={versionsLoading}
+        onPageChange={(e, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(e) => {
+          setLimit(parseInt(e.target.value, 10));
+          setPage(0);
+        }}
+        onViewVersion={handleViewVersion}
+        onCompareVersions={handleCompareVersions}
+        onActivate={handleActivateVersion}
+        onArchive={handleArchiveVersion}
+        onRevoke={handleRevokeVersion}
+        canActivate={true}
+        canArchive={true}
+        canRevoke={true}
       />
 
+      {/* Create Version Dialog */}
+      <CreateVersionDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        packageId={packageId}
+        packageCode={packageData?.packageCode}
+        onCreate={handleCreateVersion}
+        loading={creating}
+        error={null}
+        result={createResult}
+      />
+
+      {/* Compare Versions Dialog */}
+      <CompareVersionsDialog
+        open={compareDialogOpen}
+        onClose={() => {
+          setCompareDialogOpen(false);
+          setSelectedVersionId(null);
+        }}
+        versions={versions}
+        onCompare={handleCompare}
+        loading={comparing}
+        error={null}
+        result={compareResult}
+      />
+
+      {/* Version Details Drawer */}
       <VersionDetailsDrawer
         open={detailsDrawerOpen}
-        onClose={closeDetails}
-        version={selectedVersion}
-        loading={loadingDetails}
-        onRegenerate={openRegenerate}
-        onArchive={openArchive}
-        canRegenerate={canRegenerate}
-        canArchive={canArchive}
+        onClose={handleCloseDetails}
+        versionId={selectedVersionId}
+        packageId={packageId}
       />
 
-      <VersionComparisonDialog
-        open={comparisonDialogOpen}
-        onClose={closeComparison}
-        comparison={comparisonResult}
-        loading={comparing}
-      />
-
-      <RegeneratePackageDialog
-        open={regenerateDialogOpen}
-        onClose={closeRegenerate}
-        onConfirm={handleRegenerateConfirm}
-        version={selectedVersion}
-        loading={regenerating || actionLoading}
-      />
-
-      <Dialog open={timelineDialogOpen} onClose={closeTimeline} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6">Version Timeline</Typography>
-            <IconButton onClick={closeTimeline} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <VersionTimeline timeline={timeline} loading={loadingTimeline} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeTimeline}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={archiveDialogOpen} onClose={closeArchive}>
-        <DialogTitle>Archive Version</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            Are you sure you want to archive this version? This action can be reverted if needed.
-          </DialogContentText>
-          <TextField
-            fullWidth
-            multiline
-            rows={2}
-            label="Archive Reason (Optional)"
-            placeholder="Please provide a reason..."
-            value={archiveReason}
-            onChange={(e) => setArchiveReason(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeArchive} disabled={actionLoading}>Cancel</Button>
-          <Button
-            onClick={handleArchiveConfirm}
-            color="error"
-            variant="contained"
-            disabled={actionLoading}
-            startIcon={actionLoading && <CircularProgress size={20} />}
-          >
-            {actionLoading ? 'Archiving...' : 'Archive'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
+      {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert
-          severity={snackbar.severity}
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-          variant="filled"
-        >
+        <Alert severity={snackbar.severity} onClose={handleCloseSnackbar} variant="filled">
           {snackbar.message}
         </Alert>
       </Snackbar>
 
+      {/* Backdrop for loading */}
       <Backdrop
-        open={actionLoading || regenerating || comparing}
+        open={activating || archiving || revoking || creating}
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
         <Box sx={{ textAlign: 'center', color: 'white' }}>
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {regenerating ? 'Regenerating package...' : comparing ? 'Comparing versions...' : 'Processing...'}
+            {creating ? 'Creating version...' : 
+             activating ? 'Activating version...' : 
+             archiving ? 'Archiving version...' : 
+             revoking ? 'Revoking version...' : 'Processing...'}
           </Typography>
         </Box>
       </Backdrop>
@@ -310,4 +453,4 @@ const PackageVersionsPage = () => {
   );
 };
 
-export default PackageVersionsPage;
+export default PackageVersionManagementPage;

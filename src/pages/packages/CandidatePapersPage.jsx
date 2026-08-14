@@ -39,6 +39,7 @@ import CandidatePaperTable from '../../components/candidate-paper/CandidatePaper
 import CandidatePaperDetailsDrawer from '../../components/candidate-paper/CandidatePaperDetailsDrawer';
 import CandidatePaperPreviewDialog from '../../components/candidate-paper/CandidatePaperPreviewDialog';
 import RandomizationSummaryCard from '../../components/candidate-paper/RandomizationSummaryCard';
+import GeneratePaperDialog from '../../components/candidate-paper/GeneratePaperDialog';
 
 // Constants
 const PAGE_TITLE = 'Candidate Papers';
@@ -60,6 +61,7 @@ const CandidatePapersPage = () => {
   const canValidate = userRole === 'SUPER_ADMIN' || userRole === 'TECH_ADMIN';
   const canArchive = userRole === 'SUPER_ADMIN' || userRole === 'TECH_ADMIN';
   const canView = userRole === 'SUPER_ADMIN' || userRole === 'TECH_ADMIN' || userRole === 'EXAM_MANAGER';
+  const canGenerate = userRole === 'SUPER_ADMIN' || userRole === 'TECH_ADMIN';
 
   // Use the hook
   const {
@@ -76,6 +78,7 @@ const CandidatePapersPage = () => {
     detailsDrawerOpen,
     previewDialogOpen,
     randomizationDialogOpen,
+    generateDialogOpen,
     updateFilters,
     resetFilters,
     handlePageChange,
@@ -86,10 +89,20 @@ const CandidatePapersPage = () => {
     closePreview,
     openRandomization,
     closeRandomization,
+    openGenerateDialog,
+    closeGenerateDialog,
     validatePaper,
     archivePaper,
     exportPapers,
-    refresh
+    refresh,
+    generatePaper,
+    generateCentrePapers,
+    generateAllPapers,
+    generating,
+    generateResult,
+    availableInstances,
+    availableCentres,
+    availableCandidates,
   } = useCandidatePapers();
 
   // Local state
@@ -153,6 +166,40 @@ const CandidatePapersPage = () => {
     showSnackbar('Download functionality coming soon', 'info');
   };
 
+  // Handle generate paper
+  const handleGeneratePaper = async (data) => {
+    try {
+      await generatePaper(data);
+      showSnackbar('Paper generated successfully', 'success');
+      closeGenerateDialog();
+      refresh();
+    } catch (err) {
+      showSnackbar(err.message || 'Failed to generate paper', 'error');
+    }
+  };
+
+  const handleGenerateCentrePapers = async (data) => {
+    try {
+      await generateCentrePapers(data);
+      showSnackbar('Centre papers generated successfully', 'success');
+      closeGenerateDialog();
+      refresh();
+    } catch (err) {
+      showSnackbar(err.message || 'Failed to generate centre papers', 'error');
+    }
+  };
+
+  const handleGenerateAllPapers = async (data) => {
+    try {
+      await generateAllPapers(data);
+      showSnackbar('All papers generated successfully', 'success');
+      closeGenerateDialog();
+      refresh();
+    } catch (err) {
+      showSnackbar(err.message || 'Failed to generate all papers', 'error');
+    }
+  };
+
   // If user doesn't have permission
   if (!canView) {
     return (
@@ -195,9 +242,11 @@ const CandidatePapersPage = () => {
       <CandidatePaperToolbar
         onRefresh={refresh}
         onExport={exportPapers}
+        onGenerate={openGenerateDialog}
         totalCount={totalPapers}
         loading={isLoading}
         filterCount={filterCount}
+        canGenerate={canGenerate}
       />
 
       {/* Filters */}
@@ -227,6 +276,21 @@ const CandidatePapersPage = () => {
         }}
         canValidate={canValidate}
         canArchive={canArchive}
+      />
+
+      {/* Generate Paper Dialog */}
+      <GeneratePaperDialog
+        open={generateDialogOpen}
+        onClose={closeGenerateDialog}
+        instances={availableInstances || []}
+        centres={availableCentres || []}
+        candidates={availableCandidates || []}
+        onGenerate={handleGeneratePaper}
+        onGenerateCentre={handleGenerateCentrePapers}
+        onGenerateAll={handleGenerateAllPapers}
+        loading={generating}
+        error={null}
+        result={generateResult}
       />
 
       {/* Details Drawer */}
@@ -325,13 +389,13 @@ const CandidatePapersPage = () => {
 
       {/* Backdrop */}
       <Backdrop
-        open={actionLoading}
+        open={actionLoading || generating}
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
         <Box sx={{ textAlign: 'center', color: 'white' }}>
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            Processing...
+            {generating ? 'Generating papers...' : 'Processing...'}
           </Typography>
         </Box>
       </Backdrop>

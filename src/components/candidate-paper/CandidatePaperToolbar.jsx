@@ -16,14 +16,17 @@ import {
   Refresh as RefreshIcon,
   Download as DownloadIcon,
   FilterList as FilterIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 
 const CandidatePaperToolbar = ({
   onRefresh,
   onExport,
+  onGenerate,
   totalCount = 0,
   loading = false,
   filterCount = 0,
+  canGenerate = true,
 }) => {
   return (
     <Box
@@ -56,6 +59,20 @@ const CandidatePaperToolbar = ({
       </Box>
 
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        {canGenerate && (
+          <Tooltip title="Generate new candidate papers">
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={onGenerate}
+              disabled={loading}
+              size="small"
+            >
+              Generate Papers
+            </Button>
+          </Tooltip>
+        )}
+
         <Tooltip title="Refresh data">
           <Button
             variant="outlined"

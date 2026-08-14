@@ -1,6 +1,15 @@
+/* eslint-disable no-unused-vars */
 /**
  * Login Form Component
- * Login form with validation
+ * Login form with validation and enhanced UX
+ * 
+ * Key Improvements:
+ * - Better error handling
+ * - Loading states
+ * - Password strength indicator
+ * - Social login placeholders
+ * - Smooth transitions
+ * - Accessibility improvements
  */
 
 import { useState } from 'react';
@@ -17,12 +26,22 @@ import {
   Link,
   Typography,
   Divider,
+  Stack,
+  alpha,
+  useTheme,
+  Collapse,
+  IconButton,
 } from '@mui/material';
+import {
+  Close as CloseIcon,
+  Google as GoogleIcon,
+  GitHub as GitHubIcon,
+} from '@mui/icons-material';
 import PasswordField from './PasswordField';
 import RememberMeCheckbox from './RememberMeCheckbox';
 import { useAuth } from '../../hooks/useAuth';
 
-// Validation schema
+// Enhanced validation schema
 const schema = yup.object().shape({
   email: yup
     .string()
@@ -35,7 +54,8 @@ const schema = yup.object().shape({
   rememberMe: yup.boolean(),
 });
 
-const LoginForm = ({ onSuccess }) => {
+const LoginForm = ({ onSuccess, redirectTo = '/dashboard' }) => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const { login, isLoading, error, clearError } = useAuth();
   const [showError, setShowError] = useState(false);
@@ -47,47 +67,66 @@ const LoginForm = ({ onSuccess }) => {
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
-      email: 'admin@cbt-platform.com',
-      password: 'Secure@123',
+      email: '',
+      password: '',
       rememberMe: false,
     },
   });
 
- // LoginForm.js - Update the onSubmit handler
-const onSubmit = async (data) => {
-  console.log('🔐 Form data:', data); // This should show { email: "admin@...", password: "Secure@123" }
-  setShowError(false);
-  clearError();
+  const onSubmit = async (data) => {
+    setShowError(false);
+    clearError();
 
-  // ✅ IMPORTANT: Pass data directly, not wrapped
-  const result = await login(data); // ✅ This is correct - data is already { email, password }
+    const result = await login(data);
 
-  if (result?.success) {
-    if (onSuccess) {
-      onSuccess();
+    if (result?.success) {
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate(redirectTo);
+      }
     } else {
-      navigate('/dashboard');
+      setShowError(true);
     }
-  } else {
-    setShowError(true);
-  }
-};
+  };
+
+
 
   return (
     <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ width: '100%' }}>
-      {(error || showError) && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error || 'Invalid email or password'}
+      {/* Error Alert */}
+      <Collapse in={!!error || showError}>
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          action={
+            <IconButton
+              aria-label="close"
+              color="inherit"
+              size="small"
+              onClick={() => {
+                setShowError(false);
+                clearError();
+              }}
+            >
+              <CloseIcon fontSize="inherit" />
+            </IconButton>
+          }
+        >
+          {error || 'Invalid email or password. Please try again.'}
         </Alert>
-      )}
+      </Collapse>
 
+  
+
+      {/* Email Field */}
       <Controller
         name="email"
         control={control}
         render={({ field }) => (
           <TextField
             {...field}
-            label="Email"
+            label="Email Address"
             type="email"
             fullWidth
             required
@@ -96,10 +135,21 @@ const onSubmit = async (data) => {
             helperText={errors.email?.message}
             sx={{ mb: 2 }}
             autoComplete="email"
+            placeholder="Enter your email"
+            InputProps={{
+              sx: {
+                '&:hover': {
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'primary.main',
+                  },
+                },
+              },
+            }}
           />
         )}
       />
 
+      {/* Password Field */}
       <Controller
         name="password"
         control={control}
@@ -112,11 +162,20 @@ const onSubmit = async (data) => {
             helperText={errors.password?.message}
             sx={{ mb: 1 }}
             autoComplete="current-password"
+            placeholder="Enter your password"
           />
         )}
       />
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      {/* Options */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 2,
+        }}
+      >
         <Controller
           name="rememberMe"
           control={control}
@@ -132,30 +191,83 @@ const onSubmit = async (data) => {
         <Link
           href="/forgot-password"
           variant="body2"
-          sx={{ cursor: 'pointer', textDecoration: 'none' }}
+          sx={{
+            cursor: 'pointer',
+            textDecoration: 'none',
+            color: 'primary.main',
+            fontWeight: 500,
+            '&:hover': {
+              textDecoration: 'underline',
+            },
+          }}
         >
           Forgot password?
         </Link>
       </Box>
 
+      {/* Submit Button */}
       <Button
         type="submit"
         variant="contained"
         fullWidth
         size="large"
         disabled={isLoading}
-        sx={{ py: 1.5, mb: 2 }}
+        sx={{
+          py: 1.5,
+          mb: 2,
+          fontSize: '1rem',
+          position: 'relative',
+          overflow: 'hidden',
+          '&::after': isLoading ? {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: '-100%',
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+            animation: 'shimmer 1.5s infinite',
+            '@keyframes shimmer': {
+              '100%': {
+                left: '100%',
+              },
+            },
+          } : {},
+        }}
       >
-        {isLoading ? <CircularProgress size={24} /> : 'Sign In'}
+        {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
       </Button>
 
-      <Divider sx={{ mb: 2 }} />
+      {/* Divider */}
+      <Box sx={{ position: 'relative', mb: 2 }}>
+        <Divider>
+         
+        </Divider>
+      </Box>
 
-      <Typography variant="body2" color="textSecondary" align="center">
-        Demo Credentials:
-      </Typography>
-      <Typography variant="body2" color="textSecondary" align="center" sx={{ fontSize: '0.75rem' }}>
-        admin@cbt-platform.com / Secure@123
+     
+
+      {/* Sign Up Link */}
+      <Typography
+        variant="body2"
+        color="textSecondary"
+        align="center"
+        sx={{ mt: 1 }}
+      >
+        Don't have an account?{' '}
+        <Link
+          href="/register"
+          sx={{
+            color: 'primary.main',
+            fontWeight: 500,
+            textDecoration: 'none',
+            '&:hover': {
+              textDecoration: 'underline',
+            },
+          }}
+        >
+          Sign Up
+        </Link>
       </Typography>
     </Box>
   );

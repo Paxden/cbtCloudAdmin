@@ -73,7 +73,6 @@ import ExaminationValidation from "../pages/examinationValidation/ExaminationVal
 import ExaminationsInstances from "../pages/packages/ExaminationsInstancesPage"
 import PackageBuilder from "../pages/packages/PackageGeneratorPage.jsx";
 import CandidatePapersPage from "../pages/packages/CandidatePapersPage.jsx";
-import PackageValidationPage from "../pages/packages/PackageValidationPage.jsx"
 
 // ============================================================
 // PHASE 4 - PACKAGE MANAGEMENT MODULES
@@ -340,11 +339,10 @@ const AppRoutes = () => {
               <Route path="/signature" element={<Signature />} />
               <Route path="/checksum" element={<ChecksumManagementPage />} />
               <Route path="/builder" element={<PackageBuilder />} />
-              <Route path="/validation" element={<PackageValidationPage />} />
               <Route path="/distribution" element={<DistributionManagementPage />} />
               <Route path="/downloads" element={<PackageDownloadsPage />} />
-              <Route path="/history" element={<PackageVersionsPage />} />
-              <Route path="/versions" element={<PackageHistoryPage />} />
+              <Route path="/versions" element={<PackageVersionsPage />} />
+              <Route path="/history" element={<PackageHistoryPage />} /> 
             </Route>
           </Route>
 

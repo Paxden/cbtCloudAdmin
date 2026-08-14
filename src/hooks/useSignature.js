@@ -1,6 +1,4 @@
-
 /* eslint-disable react-hooks/set-state-in-effect */
-
 
 /**
  * Signature Hooks
@@ -29,6 +27,12 @@ const useFetchData = (fetchFn, params = {}, options = {}) => {
   const isMountedRef = useRef(true);
 
   const fetchData = useCallback(async () => {
+    // ✅ Skip if params is null or undefined or 'null'
+    if (!params || params === 'null') {
+      setLoading(false);
+      return;
+    }
+    
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -59,7 +63,9 @@ const useFetchData = (fetchFn, params = {}, options = {}) => {
   useEffect(() => {
     isMountedRef.current = true;
     
-    if (options.enabled !== false) {
+    // ✅ Only fetch if enabled and params is valid
+    const isValidParams = params && params !== 'null';
+    if (options.enabled !== false && isValidParams) {
       fetchData();
     }
     
@@ -69,7 +75,7 @@ const useFetchData = (fetchFn, params = {}, options = {}) => {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchData, options.enabled]);
+  }, [fetchData, options.enabled, params]);
 
   return {
     data,
@@ -87,10 +93,13 @@ const useFetchData = (fetchFn, params = {}, options = {}) => {
  * Hook: Get signature information
  */
 export const useSignature = (packageId, options = {}) => {
+  // ✅ Validate packageId before enabling
+  const isValidPackageId = packageId && packageId !== 'null' && packageId !== null && packageId !== undefined;
+  
   return useFetchData(
     signatureService.getSignature,
     packageId,
-    { ...options, enabled: !!packageId && options.enabled !== false }
+    { ...options, enabled: isValidPackageId && options.enabled !== false }
   );
 };
 
@@ -107,6 +116,9 @@ export const useSignPackage = () => {
   const [result, setResult] = useState(null);
 
   const signPackage = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      throw new Error('Invalid package ID');
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -135,6 +147,9 @@ export const useVerifySignature = () => {
   const [result, setResult] = useState(null);
 
   const verifySignature = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      throw new Error('Invalid package ID');
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -163,6 +178,9 @@ export const useRevokeSignature = () => {
   const [result, setResult] = useState(null);
 
   const revokeSignature = useCallback(async (packageId, reason = '') => {
+    if (!packageId || packageId === 'null') {
+      throw new Error('Invalid package ID');
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -191,6 +209,9 @@ export const useRegenerateSignature = () => {
   const [result, setResult] = useState(null);
 
   const regenerateSignature = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      throw new Error('Invalid package ID');
+    }
     setLoading(true);
     setError(null);
     setResult(null);

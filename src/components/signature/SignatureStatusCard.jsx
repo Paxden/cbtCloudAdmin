@@ -79,6 +79,15 @@ const SignatureStatusCard = ({
     );
   };
 
+  // ✅ Helper to safely get display name from user object
+  const getUserDisplayName = (user) => {
+    if (!user) return 'Unknown';
+    if (typeof user === 'string') return user;
+    if (user.name) return user.name;
+    if (user.email) return user.email;
+    return 'Unknown';
+  };
+
   if (loading) {
     return (
       <Card>
@@ -119,6 +128,9 @@ const SignatureStatusCard = ({
   const isRevoked = signature.revoked || signature.status === SignatureStatus.REVOKED;
   const isPending = signature.status === SignatureStatus.PENDING || 
                     signature.status === SignatureStatus.SIGNING;
+
+  // ✅ Safely get signed by display name
+  const signedByDisplay = getUserDisplayName(signature.signedBy);
 
   return (
     <Card>
@@ -193,7 +205,7 @@ const SignatureStatusCard = ({
                 Signed By
               </Typography>
               <Typography variant="body2">
-                {signature.signedBy}
+                {signedByDisplay}
               </Typography>
             </Box>
           )}

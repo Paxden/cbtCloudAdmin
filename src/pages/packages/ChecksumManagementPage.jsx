@@ -1,4 +1,7 @@
+
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
+
 /**
  * ChecksumManagementPage
  * Main page for managing package checksums and integrity
@@ -6,7 +9,7 @@
  * Location: src/pages/checksum/ChecksumManagementPage.jsx
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -53,6 +56,9 @@ import {
   useVerifyChecksum,
 } from '../../hooks/useChecksum';
 
+// Import packages hook
+import { usePackages } from '../../hooks/usePackage';
+
 // Components
 import ChecksumStatusCard from '../../components/checksum/ChecksumStatusCard';
 import ChecksumDialog from '../../components/checksum/ChecksumDialog';
@@ -63,6 +69,15 @@ import {
   ChecksumStatusLabels,
   ChecksumStatusColors,
 } from '../../types/checksum.types';
+
+// Helper: Format file size
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 const ChecksumManagementPage = () => {
   const navigate = useNavigate();
@@ -85,85 +100,76 @@ const ChecksumManagementPage = () => {
   const { verifyChecksum, loading: verifying, result: verifyResult } = useVerifyChecksum();
 
   // Get checksum status for selected package
+  // ✅ Only enable when selectedPackageId is a valid non-null value
   const {
     data: checksumStatus,
     loading: statusLoading,
     error: statusError,
     refetch: refetchStatus,
-  } = useChecksum(selectedPackageId, {
-    enabled: !!selectedPackageId,
-  });
-
-  // Mock packages data - replace with actual API call
-  const packages = [
+  } = useChecksum(
+    selectedPackageId && selectedPackageId !== 'null' ? selectedPackageId : null,
     {
-      id: '1',
-      packageCode: 'PROMO-2027-ABJ001-V1',
-      examName: 'Promotion Examination 2027',
-      centreCode: 'ABJ001',
-      status: 'SIGNED',
-      createdAt: '2026-08-01T21:14:01.468Z',
-      checksumStatus: ChecksumStatus.VERIFIED,
-    },
-    {
-      id: '2',
-      packageCode: 'PROMO-2027-LAG002-V1',
-      examName: 'Promotion Examination 2027',
-      centreCode: 'LAG002',
-      status: 'SIGNED',
-      createdAt: '2026-08-02T10:30:00.000Z',
-      checksumStatus: ChecksumStatus.PENDING,
-    },
-  ];
-
-  // Handlers
-  const handleOpenDialog = (packageId, packageCode, mode) => {
-    setSelectedPackageId(packageId);
-    setSelectedPackageCode(packageCode);
-    setDialogMode(mode);
-    setDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    if (selectedPackageId) {
-      refetchStatus();
+      enabled: !!selectedPackageId && selectedPackageId !== 'null' && selectedPackageId !== null,
     }
-  };
+  );
 
-  const handleGenerate = async (packageId) => {
-    try {
-      await generateChecksum(packageId);
-      showSnackbar('Checksum generated successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to generate checksum', 'error');
+  // ✅ Memoize filter params to prevent infinite re-renders
+  const packageParams = useMemo(() => ({
+    page: 1,
+    limit: 100,
+    search: searchQuery || undefined,
+  }), [searchQuery]);
+
+  // Get packages with memoized params
+  const {
+    data: packagesData,
+    loading: packagesLoading,
+    error: packagesError,
+    refetch: refetchPackages,
+  } = usePackages(packageParams);
+
+  const packages = packagesData?.data || [];
+
+  // ============================================================
+  // ✅ HELPER FUNCTIONS (defined first)
+  // ============================================================
+
+  // ✅ Determine checksum status from package data
+  const getPackageChecksumStatus = useCallback((pkg) => {
+    // Check if package has checksum status from API
+    if (pkg.checksumStatus) {
+      return pkg.checksumStatus;
     }
-  };
-
-  const handleVerify = async (packageId) => {
-    try {
-      await verifyChecksum(packageId);
-      showSnackbar('Integrity verified successfully!', 'success');
-      refetchStatus();
-    } catch (error) {
-      showSnackbar(error.message || 'Failed to verify integrity', 'error');
+    
+    // Check package status
+    if (pkg.status === 'VERIFIED') {
+      return ChecksumStatus.VERIFIED;
     }
-  };
+    if (pkg.status === 'VALIDATED') {
+      return ChecksumStatus.VERIFIED;
+    }
+    if (pkg.status === 'CHECKSUM_GENERATED') {
+      return ChecksumStatus.GENERATED;
+    }
+    if (pkg.status === 'GENERATING_CHECKSUM') {
+      return ChecksumStatus.GENERATING;
+    }
+    if (pkg.status === 'FAILED') {
+      return ChecksumStatus.FAILED;
+    }
+    if (pkg.status === 'CORRUPTED') {
+      return ChecksumStatus.CORRUPTED;
+    }
+    
+    // Default to PENDING for packages that can have checksum generated
+    if (pkg.status === 'SIGNED' || pkg.status === 'READY_FOR_CHECKSUM') {
+      return ChecksumStatus.PENDING;
+    }
+    
+    return ChecksumStatus.PENDING;
+  }, []);
 
-  const showSnackbar = (message, severity = 'info') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ open: false, message: '', severity: 'info' });
-  };
-
-  const handleViewPackage = (packageId) => {
-    navigate(`/packages/${packageId}`);
-  };
-
-  const getChecksumStatusChip = (status) => {
+  const getChecksumStatusChip = useCallback((status) => {
     const label = ChecksumStatusLabels[status] || status;
     const color = ChecksumStatusColors[status] || '#9e9e9e';
 
@@ -185,25 +191,144 @@ const ChecksumManagementPage = () => {
         }}
       />
     );
-  };
+  }, []);
 
-  // Filter packages
-  const filteredPackages = packages.filter(
-    (pkg) =>
-      pkg.packageCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.examName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.centreCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ✅ Check if package can generate checksum
+  const canGenerateChecksum = useCallback((pkg) => {
+    const status = getPackageChecksumStatus(pkg);
+    return status !== ChecksumStatus.GENERATED && 
+           status !== ChecksumStatus.VERIFIED &&
+           status !== ChecksumStatus.GENERATING &&
+           pkg.status !== 'FAILED' &&
+           pkg.status !== 'CORRUPTED';
+  }, [getPackageChecksumStatus]);
 
-  // Statistics
-  const stats = {
-    total: packages.length,
-    verified: packages.filter(p => p.checksumStatus === ChecksumStatus.VERIFIED).length,
-    generated: packages.filter(p => p.checksumStatus === ChecksumStatus.GENERATED).length,
-    pending: packages.filter(p => p.checksumStatus === ChecksumStatus.PENDING).length,
-    failed: packages.filter(p => p.checksumStatus === ChecksumStatus.FAILED || 
-                               p.checksumStatus === ChecksumStatus.CORRUPTED).length,
-  };
+  // ✅ Check if package can verify checksum
+  const canVerifyChecksum = useCallback((pkg) => {
+    const status = getPackageChecksumStatus(pkg);
+    return status === ChecksumStatus.GENERATED;
+  }, [getPackageChecksumStatus]);
+
+  // ============================================================
+  // ✅ SNACKBAR FUNCTIONS (defined before being used)
+  // ============================================================
+
+  const showSnackbar = useCallback((message, severity = 'info') => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleCloseSnackbar = useCallback(() => {
+    setSnackbar({ open: false, message: '', severity: 'info' });
+  }, []);
+
+  // ============================================================
+  // ✅ HANDLERS (defined after showSnackbar)
+  // ============================================================
+
+  const handleOpenDialog = useCallback((packageId, packageCode, mode) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    setSelectedPackageId(packageId);
+    setSelectedPackageCode(packageCode);
+    setDialogMode(mode);
+    setDialogOpen(true);
+  }, [showSnackbar]);
+
+  const handleCloseDialog = useCallback(() => {
+    setDialogOpen(false);
+    if (selectedPackageId && selectedPackageId !== 'null') {
+      refetchStatus();
+    }
+    refetchPackages();
+  }, [selectedPackageId, refetchStatus, refetchPackages]);
+
+  const handleGenerate = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await generateChecksum(packageId);
+      showSnackbar('Checksum generated successfully!', 'success');
+      refetchStatus();
+      refetchPackages();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to generate checksum', 'error');
+    }
+  }, [generateChecksum, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleVerify = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await verifyChecksum(packageId);
+      showSnackbar('Integrity verified successfully!', 'success');
+      refetchStatus();
+      refetchPackages();
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to verify integrity', 'error');
+    }
+  }, [verifyChecksum, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleViewPackage = useCallback((packageId) => {
+    navigate(`/packages/${packageId}`);
+  }, [navigate]);
+
+  const handleRefresh = useCallback(() => {
+    if (selectedPackageId && selectedPackageId !== 'null') {
+      refetchStatus();
+    }
+    refetchPackages();
+    showSnackbar('Refreshed successfully', 'success');
+  }, [selectedPackageId, refetchStatus, refetchPackages, showSnackbar]);
+
+  const handleCheckStatus = useCallback((packageId, packageCode) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    setSelectedPackageId(packageId);
+    setSelectedPackageCode(packageCode);
+    refetchStatus();
+  }, [refetchStatus, showSnackbar]);
+
+  // ============================================================
+  // ✅ STATISTICS
+  // ============================================================
+
+  const stats = useMemo(() => {
+    const total = packages.length;
+    const verified = packages.filter(p => 
+      getPackageChecksumStatus(p) === ChecksumStatus.VERIFIED ||
+      p.status === 'VERIFIED' ||
+      p.status === 'VALIDATED'
+    ).length;
+    const generated = packages.filter(p => 
+      getPackageChecksumStatus(p) === ChecksumStatus.GENERATED ||
+      p.status === 'CHECKSUM_GENERATED'
+    ).length;
+    const pending = packages.filter(p => 
+      getPackageChecksumStatus(p) === ChecksumStatus.PENDING ||
+      p.status === 'SIGNED' || 
+      p.status === 'READY_FOR_CHECKSUM'
+    ).length;
+    const failed = packages.filter(p => 
+      getPackageChecksumStatus(p) === ChecksumStatus.FAILED || 
+      getPackageChecksumStatus(p) === ChecksumStatus.CORRUPTED ||
+      p.status === 'FAILED' ||
+      p.status === 'CORRUPTED'
+    ).length;
+    
+    return { total, verified, generated, pending, failed };
+  }, [packages, getPackageChecksumStatus]);
+
+  // ============================================================
+  // ✅ RENDER
+  // ============================================================
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -248,12 +373,8 @@ const ChecksumManagementPage = () => {
         <Button
           variant="contained"
           startIcon={<RefreshIcon />}
-          onClick={() => {
-            if (selectedPackageId) {
-              refetchStatus();
-            }
-            showSnackbar('Refreshed successfully', 'success');
-          }}
+          onClick={handleRefresh}
+          disabled={packagesLoading}
         >
           Refresh
         </Button>
@@ -346,128 +467,135 @@ const ChecksumManagementPage = () => {
           <Typography variant="h6">Packages</Typography>
         </Box>
 
-        {filteredPackages.length === 0 ? (
+        {packagesLoading && packages.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading packages...</Typography>
+          </Box>
+        ) : packages.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <Typography color="text.secondary">
               {searchQuery ? 'No packages match your search' : 'No packages found'}
             </Typography>
           </Box>
         ) : (
-          filteredPackages.map((pkg) => (
-            <Box
-              key={pkg.id}
-              sx={{
-                p: 2,
-                borderBottom: 1,
-                borderColor: 'divider',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                },
-              }}
-            >
-              <Grid container alignItems="center" spacing={2}>
-                <Grid item xs={12} md={3}>
-                  <Typography variant="subtitle2" fontWeight="medium">
-                    {pkg.packageCode}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {pkg.examName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Centre: {pkg.centreCode}
-                  </Typography>
-                </Grid>
+          packages.map((pkg) => {
+            const csStatus = getPackageChecksumStatus(pkg);
+            const canGenerate = canGenerateChecksum(pkg);
+            const canVerify = canVerifyChecksum(pkg);
+            
+            return (
+              <Box
+                key={pkg._id}
+                sx={{
+                  p: 2,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
+              >
+                <Grid container alignItems="center" spacing={2}>
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="subtitle2" fontWeight="medium">
+                      {pkg.packageCode}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {pkg.examInfo?.examName || 'N/A'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Centre: {pkg.centreCode}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Created
-                  </Typography>
-                  <Typography variant="body2">
-                    {new Date(pkg.createdAt).toLocaleDateString()}
-                  </Typography>
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Created
+                    </Typography>
+                    <Typography variant="body2">
+                      {new Date(pkg.createdAt || pkg.generationTiming?.completedAt).toLocaleDateString()}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Checksum Status
-                  </Typography>
-                  {getChecksumStatusChip(pkg.checksumStatus)}
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Checksum Status
+                    </Typography>
+                    {getChecksumStatusChip(csStatus)}
+                  </Grid>
 
-                <Grid item xs={12} md={3}>
-                  <Typography variant="body2" color="text.secondary">
-                    Actions
-                  </Typography>
-                  <Stack direction="row" spacing={1}>
-                    <Tooltip title="View Package">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewPackage(pkg.id)}
-                      >
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-
-                    {pkg.checksumStatus !== ChecksumStatus.GENERATED && 
-                     pkg.checksumStatus !== ChecksumStatus.VERIFIED && (
-                      <Tooltip title="Generate Checksum">
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      Actions
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Tooltip title="View Package">
                         <IconButton
                           size="small"
-                          color="primary"
-                          onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'generate')}
+                          onClick={() => handleViewPackage(pkg._id)}
                         >
-                          <FingerprintIcon fontSize="small" />
+                          <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                    )}
 
-                    {(pkg.checksumStatus === ChecksumStatus.GENERATED) && (
-                      <Tooltip title="Verify Integrity">
-                        <IconButton
-                          size="small"
-                          color="success"
-                          onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'verify')}
-                        >
-                          <VerifiedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                      {canGenerate && (
+                        <Tooltip title="Generate Checksum">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode, 'generate')}
+                          >
+                            <FingerprintIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
 
-                    {pkg.checksumStatus === ChecksumStatus.VERIFIED && (
-                      <Tooltip title="Re-verify">
-                        <IconButton
-                          size="small"
-                          color="info"
-                          onClick={() => handleOpenDialog(pkg.id, pkg.packageCode, 'verify')}
-                        >
-                          <RefreshIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Stack>
+                      {canVerify && (
+                        <Tooltip title="Verify Integrity">
+                          <IconButton
+                            size="small"
+                            color="success"
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode, 'verify')}
+                          >
+                            <VerifiedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {csStatus === ChecksumStatus.VERIFIED && (
+                        <Tooltip title="Re-verify">
+                          <IconButton
+                            size="small"
+                            color="info"
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode, 'verify')}
+                          >
+                            <RefreshIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleCheckStatus(pkg._id, pkg.packageCode)}
+                      disabled={!pkg._id || pkg._id === 'null'}
+                    >
+                      Check Status
+                    </Button>
+                  </Grid>
                 </Grid>
-
-                <Grid item xs={12} md={2}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      setSelectedPackageId(pkg.id);
-                      setSelectedPackageCode(pkg.packageCode);
-                      refetchStatus();
-                    }}
-                  >
-                    Check Status
-                  </Button>
-                </Grid>
-              </Grid>
-            </Box>
-          ))
+              </Box>
+            );
+          })
         )}
       </Paper>
 
-      {/* Checksum Status Card */}
-      {selectedPackageId && (
+      {/* Checksum Status Card (when package selected) */}
+      {selectedPackageId && selectedPackageId !== 'null' && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
             Checksum Details: {selectedPackageCode}
@@ -479,7 +607,8 @@ const ChecksumManagementPage = () => {
             onGenerate={() => handleOpenDialog(selectedPackageId, selectedPackageCode, 'generate')}
             onVerify={() => handleOpenDialog(selectedPackageId, selectedPackageCode, 'verify')}
             canGenerate={checksumStatus?.status !== ChecksumStatus.GENERATED && 
-                         checksumStatus?.status !== ChecksumStatus.VERIFIED}
+                         checksumStatus?.status !== ChecksumStatus.VERIFIED &&
+                         checksumStatus?.status !== ChecksumStatus.GENERATING}
             canVerify={checksumStatus?.status === ChecksumStatus.GENERATED}
           />
         </Box>

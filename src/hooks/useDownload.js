@@ -1,42 +1,34 @@
-
+/* eslint-disable react-hooks/use-memo */
 /* eslint-disable react-hooks/set-state-in-effect */
-
 /**
  * Download Hooks
- * 
- * Hook responsibilities:
- * - Data fetching with React hooks
- * - Loading state management
- * - Error state management
- * - Download operations
- * 
  * Location: src/hooks/useDownload.js
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import * as downloadService from '../services/package/downloadService.js';
+import * as downloadService from '../services/package/packageDownloadService.js';
 
 /**
  * Generic hook for fetching data
  */
-const useFetchData = (fetchFn, params = {}, options = {}) => {
+const useFetchData = (fetchFn, params, options = {}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  const abortControllerRef = useRef(null);
+
   const isMountedRef = useRef(true);
 
+  const isValidParams = params !== null && params !== undefined && params !== 'null';
+
   const fetchData = useCallback(async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    if (!isValidParams) {
+      setLoading(false);
+      return;
     }
-    
-    abortControllerRef.current = new AbortController();
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const result = await fetchFn(params);
       if (isMountedRef.current) {
@@ -44,7 +36,7 @@ const useFetchData = (fetchFn, params = {}, options = {}) => {
         setError(null);
       }
     } catch (err) {
-      if (isMountedRef.current && err.name !== 'AbortError') {
+      if (isMountedRef.current) {
         setError(err);
         setData(null);
       }
@@ -53,165 +45,127 @@ const useFetchData = (fetchFn, params = {}, options = {}) => {
         setLoading(false);
       }
     }
-  }, [fetchFn, params]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchFn, JSON.stringify(params)]);
 
   useEffect(() => {
     isMountedRef.current = true;
-    
-    if (options.enabled !== false) {
+
+    if (options.enabled !== false && isValidParams) {
       fetchData();
     }
-    
+
     return () => {
       isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData, options.enabled]);
 
-  return {
-    data,
-    loading,
-    error,
-    refetch: fetchData,
-  };
+  return { data, loading, error, refetch: fetchData };
 };
 
 // ============================================================
 // QUERY HOOKS
 // ============================================================
 
-/**
- * Hook: Get download history for a package
- */
-export const useDownloadHistory = (packageId, params = {}, options = {}) => {
+/** Paginated, filterable download list — GET /package-downloads */
+export const useDownloads = (params = {}, options = {}) => {
+  return useFetchData(downloadService.getDownloads, params, options);
+};
+
+/** Single download — GET /package-downloads/:downloadId */
+export const useDownload = (downloadId, options = {}) => {
+  const isValid = downloadId && downloadId !== 'null';
+  return useFetchData(downloadService.getDownload, downloadId, {
+    ...options,
+    enabled: isValid && options.enabled !== false,
+  });
+};
+
+/** Download history for one package — GET /package-downloads/:packageId/history */
+export const useDownloadHistory = (packageId, limit = 50, options = {}) => {
+  const isValid = packageId && packageId !== 'null';
   return useFetchData(
-    downloadService.getDownloadHistory,
-    { packageId, ...params },
-    { ...options, enabled: !!packageId && options.enabled !== false }
+    (id) => downloadService.getDownloadHistory(id, limit),
+    packageId,
+    { ...options, enabled: isValid && options.enabled !== false },
   );
 };
 
-/**
- * Hook: Get download by ID
- */
-export const useDownload = (downloadId, options = {}) => {
+/** Downloads for a centre — GET /package-downloads/centre/:centreId */
+export const useCentreDownloads = (centreId, params = {}, options = {}) => {
+  const isValid = centreId && centreId !== 'null';
   return useFetchData(
-    downloadService.getDownload,
-    downloadId,
-    { ...options, enabled: !!downloadId && options.enabled !== false }
+    (id) => downloadService.getCentreDownloads(id, params),
+    centreId,
+    { ...options, enabled: isValid && options.enabled !== false },
   );
+};
+
+/** Statistics — GET /package-downloads/statistics */
+export const useDownloadStatistics = (params = {}, options = {}) => {
+  return useFetchData(downloadService.getDownloadStatistics, params, options);
 };
 
 // ============================================================
 // MUTATION HOOKS
 // ============================================================
 
-/**
- * Hook: Initiate a download
- */
+const useMutation = (mutationFn) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+
+  const mutate = useCallback(
+    async (...args) => {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      try {
+        const response = await mutationFn(...args);
+        setResult(response);
+        return response;
+      } catch (err) {
+        setError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [mutationFn],
+  );
+
+  return { mutate, loading, error, result };
+};
+
+/** Step 1: create the download record + get a token */
 export const useInitiateDownload = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-  const [progress, setProgress] = useState(0);
-
-  const initiateDownload = useCallback(async (packageId, centreId) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setProgress(0);
-    
-    try {
-      const response = await downloadService.initiateDownload(packageId, centreId);
-      setResult(response);
-      return response;
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
+  const { mutate, loading, error, result } = useMutation((packageId, centreId) => {
+    if (!packageId || packageId === 'null') {
+      return Promise.reject(new Error('Invalid package ID'));
     }
-  }, []);
-
-  return { initiateDownload, loading, error, result, progress };
+    return downloadService.initiateDownload(packageId, centreId);
+  });
+  return { initiateDownload: mutate, loading, error, result };
 };
 
-/**
- * Hook: Complete a download
- */
-export const useCompleteDownload = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-
-  const completeDownload = useCallback(async (downloadId) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    
-    try {
-      const response = await downloadService.completeDownload(downloadId);
-      setResult(response);
-      return response;
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { completeDownload, loading, error, result };
-};
-
-/**
- * Hook: Generate download URL
- */
-export const useGenerateDownloadUrl = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-
-  const generateDownloadUrl = useCallback(async (packageId, downloadId) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    
-    try {
-      const response = await downloadService.generateDownloadUrl(packageId, downloadId);
-      setResult(response);
-      return response;
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { generateDownloadUrl, loading, error, result };
-};
-
-/**
- * Hook: Stream download with progress
- */
+/** Step 2: stream the actual file, with live progress */
 export const useStreamDownload = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
-  const [downloadUrl, setDownloadUrl] = useState(null);
 
   const streamDownload = useCallback(async (packageId, token, fileName) => {
+    if (!packageId || packageId === 'null' || !token || token === 'null') {
+      throw new Error('Invalid package or token');
+    }
     setLoading(true);
     setError(null);
     setProgress(0);
-    
+
     try {
-      const blob = await downloadService.streamDownload(packageId, token);
-      
-      // Create download link
+      const blob = await downloadService.streamDownload(packageId, token, setProgress);
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -220,8 +174,7 @@ export const useStreamDownload = () => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
-      setDownloadUrl(url);
+
       setProgress(100);
       return blob;
     } catch (err) {
@@ -232,18 +185,59 @@ export const useStreamDownload = () => {
     }
   }, []);
 
-  return { streamDownload, loading, error, progress, downloadUrl };
+  return { streamDownload, loading, error, progress };
 };
 
-// ============================================================
-// DEFAULT EXPORT
-// ============================================================
+export const useCompleteDownload = () => {
+  const { mutate, loading, error, result } = useMutation((downloadId) => {
+    if (!downloadId || downloadId === 'null') {
+      return Promise.reject(new Error('Invalid download ID'));
+    }
+    return downloadService.completeDownload(downloadId);
+  });
+  return { completeDownload: mutate, loading, error, result };
+};
+
+export const useFailDownload = () => {
+  const { mutate, loading, error, result } = useMutation((downloadId, reason) => {
+    if (!downloadId || downloadId === 'null') {
+      return Promise.reject(new Error('Invalid download ID'));
+    }
+    return downloadService.failDownload(downloadId, reason);
+  });
+  return { failDownload: mutate, loading, error, result };
+};
+
+export const useVerifyDownload = () => {
+  const { mutate, loading, error, result } = useMutation((downloadId) => {
+    if (!downloadId || downloadId === 'null') {
+      return Promise.reject(new Error('Invalid download ID'));
+    }
+    return downloadService.verifyDownload(downloadId);
+  });
+  return { verifyDownload: mutate, loading, error, result };
+};
+
+export const useRetryDownload = () => {
+  const { mutate, loading, error, result } = useMutation((downloadId) => {
+    if (!downloadId || downloadId === 'null') {
+      return Promise.reject(new Error('Invalid download ID'));
+    }
+    return downloadService.retryDownload(downloadId);
+  });
+  return { retryDownload: mutate, loading, error, result };
+};
 
 export default {
-  useDownloadHistory,
+  useDownloads,
   useDownload,
+  useDownloadHistory,
+  useCentreDownloads,
+  useDownloadStatistics,
   useInitiateDownload,
-  useCompleteDownload,
-  useGenerateDownloadUrl,
   useStreamDownload,
+  useCompleteDownload,
+  useFailDownload,
+  useVerifyDownload,
+  useRetryDownload,
 };

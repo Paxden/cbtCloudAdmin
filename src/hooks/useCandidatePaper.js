@@ -1,7 +1,6 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/set-state-in-effect */
 
-
 /**
  * Candidate Paper Hook
  * 
@@ -10,13 +9,15 @@
  * - Data fetching with React hooks
  * - Loading state management
  * - Error state management
- * - Paper operations (validate, archive, export)
+ * - Paper operations (validate, archive, export, generate)
  * 
  * Location: src/hooks/useCandidatePaper.js
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as candidatePaperService from '../services/package/candidatePaperService.js';
+import * as examInstanceService from '../services/instances/instanceService.js';
+import * as centreService from '../services/centres/centreService.js';
 
 export const useCandidatePapers = () => {
   // State
@@ -36,6 +37,14 @@ export const useCandidatePapers = () => {
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [randomizationDialogOpen, setRandomizationDialogOpen] = useState(false);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+
+  // Generation State
+  const [generating, setGenerating] = useState(false);
+  const [generateResult, setGenerateResult] = useState(null);
+  const [availableInstances, setAvailableInstances] = useState([]);
+  const [availableCentres, setAvailableCentres] = useState([]);
+  const [availableCandidates, setAvailableCandidates] = useState([]);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -87,8 +96,6 @@ export const useCandidatePapers = () => {
   const fetchStatistics = useCallback(async () => {
     setLoadingStatistics(true);
     try {
-      // For now, calculate from papers or use a separate endpoint
-      // You can add a statistics endpoint if needed
       const stats = {
         total: totalPapers,
         generated: papers.filter(p => p.status === 'GENERATED' || p.status === 'GENERATING').length,
@@ -114,6 +121,54 @@ export const useCandidatePapers = () => {
       setLoadingStatistics(false);
     }
   }, [papers, totalPapers]);
+
+  // Fetch available data for generation
+  const fetchAvailableData = useCallback(async () => {
+    try {
+      // Fetch locked instances
+      const instancesResult = await examInstanceService.getInstances({
+        status: 'LOCKED',
+        limit: 100,
+      });
+      
+      // Handle both array and object response formats
+      let instances = [];
+      if (instancesResult) {
+        if (Array.isArray(instancesResult)) {
+          instances = instancesResult;
+        } else if (instancesResult.data) {
+          instances = Array.isArray(instancesResult.data) 
+            ? instancesResult.data 
+            : (instancesResult.data.data || []);
+        }
+      }
+      setAvailableInstances(instances);
+
+      // Fetch active centres
+      const centresResult = await centreService.getCentres({
+        status: 'ACTIVE',
+        limit: 100,
+      });
+      
+      let centres = [];
+      if (centresResult?.data) {
+        if (Array.isArray(centresResult.data)) {
+          centres = centresResult.data;
+        } else if (centresResult.data.data) {
+          centres = centresResult.data.data;
+        } else if (centresResult.data.centres) {
+          centres = centresResult.data.centres;
+        }
+      }
+      setAvailableCentres(centres);
+
+      // TODO: Fetch candidates based on selected instance/centre
+      // This can be implemented when a specific instance is selected
+      
+    } catch (error) {
+      console.error('Failed to fetch available data:', error);
+    }
+  }, []);
 
   // Load data on mount and filter changes
   useEffect(() => {
@@ -218,12 +273,21 @@ export const useCandidatePapers = () => {
     setRandomizationData(null);
   }, []);
 
+  // Generate dialog handlers
+  const openGenerateDialog = useCallback(() => {
+    setGenerateDialogOpen(true);
+    fetchAvailableData();
+  }, [fetchAvailableData]);
+
+  const closeGenerateDialog = useCallback(() => {
+    setGenerateDialogOpen(false);
+    setGenerateResult(null);
+  }, []);
+
   // Paper operations
   const validatePaper = useCallback(async (paperId) => {
     // Validate paper - update status or perform validation
-    // This would call a specific endpoint if available
     const paper = await candidatePaperService.getPaperById(paperId);
-    // For now, just refresh the list
     refresh();
     return paper;
   }, [refresh]);
@@ -263,6 +327,68 @@ export const useCandidatePapers = () => {
     window.URL.revokeObjectURL(url);
   }, [papers]);
 
+  // ============================================================
+  // GENERATION FUNCTIONS
+  // ============================================================
+
+  /**
+   * Generate a single candidate paper
+   */
+  const generatePaper = useCallback(async (data) => {
+    setGenerating(true);
+    setGenerateResult(null);
+    try {
+      const result = await candidatePaperService.generatePaper(data);
+      setGenerateResult(result);
+      return result;
+    } catch (error) {
+      console.error('Failed to generate paper:', error);
+      throw error;
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
+
+  /**
+   * Generate papers for all candidates in a centre
+   */
+  const generateCentrePapers = useCallback(async (data) => {
+    setGenerating(true);
+    setGenerateResult(null);
+    try {
+      const result = await candidatePaperService.generateCentrePapers(data);
+      setGenerateResult(result);
+      return result;
+    } catch (error) {
+      console.error('Failed to generate centre papers:', error);
+      throw error;
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
+
+  /**
+   * Generate papers for all candidates in all centres
+   */
+  const generateAllPapers = useCallback(async (data) => {
+    setGenerating(true);
+    setGenerateResult(null);
+    try {
+      const result = await candidatePaperService.generateAllPapers(data);
+      setGenerateResult(result);
+      return result;
+    } catch (error) {
+      console.error('Failed to generate all papers:', error);
+      throw error;
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
+
+  // ============================================================
+  // RETURN VALUES
+  // ============================================================
+
   return {
     // Data
     papers,
@@ -280,6 +406,14 @@ export const useCandidatePapers = () => {
     detailsDrawerOpen,
     previewDialogOpen,
     randomizationDialogOpen,
+    generateDialogOpen,
+    
+    // Generation State
+    generating,
+    generateResult,
+    availableInstances,
+    availableCentres,
+    availableCandidates,
     
     // Filter Actions
     updateFilters,
@@ -294,11 +428,18 @@ export const useCandidatePapers = () => {
     closePreview,
     openRandomization,
     closeRandomization,
+    openGenerateDialog,
+    closeGenerateDialog,
     
     // Operations
     validatePaper,
     archivePaper,
     exportPapers,
+    
+    // Generation Functions
+    generatePaper,
+    generateCentrePapers,
+    generateAllPapers,
     
     // Utility
     refresh,

@@ -29,7 +29,7 @@ export const createExamination = async (data) => {
  * @param {number} params.page - Page number
  * @param {number} params.limit - Items per page
  * @param {string} params.search - Search term
- * @param {string} params.status - Filter by status
+ * @param {string} params.status - Filter by status (single status or comma-separated)
  * @param {string} params.examinationType - Filter by type
  * @param {number} params.promotionYear - Filter by year
  * @param {string} params.sortBy - Sort field
@@ -56,6 +56,14 @@ export const getExaminations = async (params = {}) => {
       delete queryParams.sort;
     }
     
+    // ✅ FIX: Handle status parameter - if it's a single status, keep as is
+    // The backend expects status as a string or comma-separated
+    // Don't modify the status - let it pass through
+    if (queryParams.status && queryParams.status === 'VALIDATED') {
+      // Keep as 'VALIDATED' - backend should accept this
+      console.log("✅ Filtering by status: VALIDATED");
+    }
+    
     // Remove undefined values
     Object.keys(queryParams).forEach(key => {
       if (queryParams[key] === undefined || queryParams[key] === null || queryParams[key] === '') {
@@ -70,6 +78,11 @@ export const getExaminations = async (params = {}) => {
     return response.data;
   } catch (error) {
     console.error("❌ Get examinations error:", error);
+    // Log the actual error response for debugging
+    if (error.response) {
+      console.error("Error response data:", error.response.data);
+      console.error("Error response status:", error.response.status);
+    }
     throw error.response?.data || error;
   }
 };

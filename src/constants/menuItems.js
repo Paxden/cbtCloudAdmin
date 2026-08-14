@@ -355,15 +355,7 @@ export const MENU_ITEMS = [
         roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN],
       },
 
-      // Module 4: Package Validation
-      {
-        id: "packageValidation",
-        title: "Package Validation",
-        icon: ValidationIcon,
-        path: "/validation",
-        permissions: ["VALIDATE_PACKAGE"],
-        roles: [ROLES.SUPER_ADMIN, ROLES.TECH_ADMIN],
-      },
+     
 
       // Module 5: Distribution
       {

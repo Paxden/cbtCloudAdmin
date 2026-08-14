@@ -1,4 +1,6 @@
 /* eslint-disable no-unused-vars */
+/* eslint-disable react-hooks/exhaustive-deps */
+
 /**
  * PackageBuilderPage
  * Main page for building CBTX packages
@@ -6,7 +8,7 @@
  * Location: src/pages/package-builder/PackageBuilderPage.jsx
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   Box,
   Container,
@@ -27,6 +29,8 @@ import {
   Grid,
   Stack,
   Divider,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import {
   NavigateNext as NavigateNextIcon,
@@ -37,6 +41,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   Pending as PendingIcon,
+  Visibility as VisibilityIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
@@ -49,13 +54,25 @@ import {
   useDownloadPackage,
 } from "../../hooks/usePackageBuilder";
 
+// Import packages hook
+import { usePackages } from "../../hooks/usePackage";
+
 // Components
 import PackageBuilderDialog from "../../components/package-builder/PackageBuilderDialog";
 import PackageStatusCard from "../../components/package-builder/PackageStatusCard";
-import BuildHistoryTable from "../../components/package-Builder/BuildHistoryTable";
+import BuildHistoryTable from "../../components/package-builder/BuildHistoryTable";
 
 // Types
 import { FileStatus, FileStatusLabels, FileStatusColors } from "../../types/packageBuilder.types";
+
+// Helper: Format file size
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
 
 const PackageBuilderPage = () => {
   const navigate = useNavigate();
@@ -63,6 +80,7 @@ const PackageBuilderPage = () => {
 
   // State
   const [selectedPackageId, setSelectedPackageId] = useState(null);
+  const [selectedPackageCode, setSelectedPackageCode] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
@@ -82,90 +100,61 @@ const PackageBuilderPage = () => {
     loading: fileLoading,
     error: fileError,
     refetch: refetchFile,
-  } = usePackageFile(selectedPackageId, {
-    enabled: !!selectedPackageId,
-  });
-
-  // Handlers
-  const handleOpenDialog = (packageId) => {
-    setSelectedPackageId(packageId);
-    setDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setSelectedPackageId(null);
-  };
-
-  const handleBuild = async (packageId) => {
-    try {
-      await buildPackage(packageId);
-      await refetchFile();
-      showSnackbar("Package built successfully!", "success");
-    } catch (error) {
-      showSnackbar(error.message || "Failed to build package", "error");
-    }
-  };
-
-  const handleRebuild = async (packageId) => {
-    try {
-      await rebuildPackage(packageId);
-      await refetchFile();
-      showSnackbar("Package rebuilt successfully!", "success");
-    } catch (error) {
-      showSnackbar(error.message || "Failed to rebuild package", "error");
-    }
-  };
-
-  const handleDownload = async (packageId, fileName) => {
-    try {
-      await downloadPackage(packageId, fileName);
-      showSnackbar("Package downloaded successfully!", "success");
-    } catch (error) {
-      showSnackbar(error.message || "Failed to download package", "error");
-    }
-  };
-
-  const showSnackbar = (message, severity = "info") => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ open: false, message: "", severity: "info" });
-  };
-
-  // Navigate to package details
-  const handleViewPackage = (packageId) => {
-    navigate(`/packages/${packageId}`);
-  };
-
-  // Mock data for demonstration - replace with actual data from API
-  const packages = [
+  } = usePackageFile(
+    selectedPackageId && selectedPackageId !== 'null' ? selectedPackageId : null,
     {
-      id: "1",
-      packageCode: "PROMO-2027-ABJ001-V1",
-      examName: "Promotion Examination 2027",
-      centreCode: "ABJ001",
-      status: "VALIDATED",
-      createdAt: "2026-08-01T21:14:01.468Z",
-      fileStatus: FileStatus.CREATED,
-      fileSize: "2.4 MB",
-      version: 1,
-    },
-    {
-      id: "2",
-      packageCode: "PROMO-2027-LAG002-V1",
-      examName: "Promotion Examination 2027",
-      centreCode: "LAG002",
-      status: "VALIDATED",
-      createdAt: "2026-08-02T10:30:00.000Z",
-      fileStatus: FileStatus.PENDING,
-      fileSize: null,
-      version: 1,
-    },
-  ];
+      enabled: !!selectedPackageId && selectedPackageId !== 'null' && selectedPackageId !== null,
+    }
+  );
 
-  const getStatusChip = (status) => {
+  // ✅ Memoize filter params to prevent infinite re-renders
+  const packageParams = useMemo(() => ({
+    page: 1,
+    limit: 100,
+    search: searchQuery || undefined,
+  }), [searchQuery]);
+
+  // Get packages with memoized params
+  const {
+    data: packagesData,
+    loading: packagesLoading,
+    error: packagesError,
+    refetch: refetchPackages,
+  } = usePackages(packageParams);
+
+  const packages = packagesData?.data || [];
+
+  // ============================================================
+  // ✅ HELPER FUNCTIONS (defined first)
+  // ============================================================
+
+  // ✅ Determine file status from package data
+  const getPackageFileStatus = useCallback((pkg) => {
+    // Check if package has file status
+    if (pkg.fileStatus) {
+      return pkg.fileStatus;
+    }
+    
+    // Check if package has a file record
+    if (pkg.fileRecord) {
+      return pkg.fileRecord.status || FileStatus.CREATED;
+    }
+    
+    // Check package status
+    if (pkg.status === 'VALIDATED' || pkg.status === 'DOWNLOADED') {
+      return FileStatus.CREATED;
+    }
+    if (pkg.status === 'BUILDING') {
+      return FileStatus.BUILDING;
+    }
+    if (pkg.status === 'FAILED') {
+      return FileStatus.FAILED;
+    }
+    
+    return FileStatus.PENDING;
+  }, []);
+
+  const getStatusChip = useCallback((status) => {
     const label = FileStatusLabels[status] || status;
     const color = FileStatusColors[status] || "#9e9e9e";
 
@@ -186,15 +175,134 @@ const PackageBuilderPage = () => {
         }}
       />
     );
-  };
+  }, []);
 
-  // Filter packages
-  const filteredPackages = packages.filter(
-    (pkg) =>
-      pkg.packageCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.examName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pkg.centreCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ✅ Check if package can be built
+  const canBuildPackage = useCallback((pkg) => {
+    const status = getPackageFileStatus(pkg);
+    return status !== FileStatus.CREATED && 
+           status !== FileStatus.BUILDING &&
+           pkg.status !== 'FAILED';
+  }, [getPackageFileStatus]);
+
+  // ✅ Check if package can be rebuilt
+  const canRebuildPackage = useCallback((pkg) => {
+    const status = getPackageFileStatus(pkg);
+    return status === FileStatus.CREATED || status === FileStatus.FAILED;
+  }, [getPackageFileStatus]);
+
+  // ✅ Check if package can be downloaded
+  const canDownloadPackage = useCallback((pkg) => {
+    const status = getPackageFileStatus(pkg);
+    return status === FileStatus.CREATED;
+  }, [getPackageFileStatus]);
+
+  // ============================================================
+  // ✅ SNACKBAR FUNCTIONS (defined before being used)
+  // ============================================================
+
+  const showSnackbar = useCallback((message, severity = "info") => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleCloseSnackbar = useCallback(() => {
+    setSnackbar({ open: false, message: "", severity: "info" });
+  }, []);
+
+  // ============================================================
+  // ✅ HANDLERS (defined after showSnackbar)
+  // ============================================================
+
+  const handleOpenDialog = useCallback((packageId, packageCode) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    setSelectedPackageId(packageId);
+    setSelectedPackageCode(packageCode);
+    setDialogOpen(true);
+  }, [showSnackbar]);
+
+  const handleCloseDialog = useCallback(() => {
+    setDialogOpen(false);
+    if (selectedPackageId && selectedPackageId !== 'null') {
+      refetchFile();
+    }
+    refetchPackages();
+  }, [selectedPackageId, refetchFile, refetchPackages]);
+
+  const handleBuild = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await buildPackage(packageId);
+      await refetchFile();
+      refetchPackages();
+      showSnackbar("Package built successfully!", "success");
+    } catch (error) {
+      showSnackbar(error.message || "Failed to build package", "error");
+    }
+  }, [buildPackage, refetchFile, refetchPackages, showSnackbar]);
+
+  const handleRebuild = useCallback(async (packageId) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await rebuildPackage(packageId);
+      await refetchFile();
+      refetchPackages();
+      showSnackbar("Package rebuilt successfully!", "success");
+    } catch (error) {
+      showSnackbar(error.message || "Failed to rebuild package", "error");
+    }
+  }, [rebuildPackage, refetchFile, refetchPackages, showSnackbar]);
+
+  const handleDownload = useCallback(async (packageId, fileName) => {
+    if (!packageId || packageId === 'null') {
+      showSnackbar('Invalid package selected', 'error');
+      return;
+    }
+    try {
+      await downloadPackage(packageId, fileName);
+      showSnackbar("Package downloaded successfully!", "success");
+    } catch (error) {
+      showSnackbar(error.message || "Failed to download package", "error");
+    }
+  }, [downloadPackage, showSnackbar]);
+
+  const handleViewPackage = useCallback((packageId) => {
+    navigate(`/packages/${packageId}`);
+  }, [navigate]);
+
+  const handleRefresh = useCallback(() => {
+    if (selectedPackageId && selectedPackageId !== 'null') {
+      refetchFile();
+    }
+    refetchPackages();
+    showSnackbar("Refreshed successfully", "success");
+  }, [selectedPackageId, refetchFile, refetchPackages, showSnackbar]);
+
+  // ============================================================
+  // ✅ STATISTICS
+  // ============================================================
+
+  const stats = useMemo(() => {
+    const total = packages.length;
+    const built = packages.filter(p => getPackageFileStatus(p) === FileStatus.CREATED).length;
+    const pending = packages.filter(p => getPackageFileStatus(p) === FileStatus.PENDING).length;
+    const building = packages.filter(p => getPackageFileStatus(p) === FileStatus.BUILDING).length;
+    const failed = packages.filter(p => getPackageFileStatus(p) === FileStatus.FAILED).length;
+    
+    return { total, built, pending, building, failed };
+  }, [packages, getPackageFileStatus]);
+
+  // ============================================================
+  // ✅ RENDER
+  // ============================================================
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -239,14 +347,76 @@ const PackageBuilderPage = () => {
         <Button
           variant="contained"
           startIcon={<RefreshIcon />}
-          onClick={() => {
-            // Refresh logic
-            showSnackbar("Refreshed successfully", "success");
-          }}
+          onClick={handleRefresh}
+          disabled={packagesLoading}
         >
           Refresh
         </Button>
       </Box>
+
+      {/* Statistics Cards */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" variant="subtitle2">
+                Total Packages
+              </Typography>
+              <Typography variant="h4" fontWeight="bold">
+                {stats.total}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" variant="subtitle2">
+                Built
+              </Typography>
+              <Typography variant="h4" fontWeight="bold" color="success.main">
+                {stats.built}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" variant="subtitle2">
+                Building
+              </Typography>
+              <Typography variant="h4" fontWeight="bold" color="warning.main">
+                {stats.building}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" variant="subtitle2">
+                Pending
+              </Typography>
+              <Typography variant="h4" fontWeight="bold" color="info.main">
+                {stats.pending}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card>
+            <CardContent>
+              <Typography color="text.secondary" variant="subtitle2">
+                Failed
+              </Typography>
+              <Typography variant="h4" fontWeight="bold" color="error.main">
+                {stats.failed}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Search */}
       <Paper sx={{ p: 2, mb: 3 }}>
@@ -265,141 +435,123 @@ const PackageBuilderPage = () => {
         />
       </Paper>
 
-      {/* Statistics Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="subtitle2">
-                Total Packages
-              </Typography>
-              <Typography variant="h4" fontWeight="bold">
-                {packages.length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="subtitle2">
-                Built
-              </Typography>
-              <Typography variant="h4" fontWeight="bold" color="success.main">
-                {packages.filter((p) => p.fileStatus === FileStatus.CREATED).length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="subtitle2">
-                Pending
-              </Typography>
-              <Typography variant="h4" fontWeight="bold" color="warning.main">
-                {packages.filter((p) => p.fileStatus === FileStatus.PENDING).length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="subtitle2">
-                Failed
-              </Typography>
-              <Typography variant="h4" fontWeight="bold" color="error.main">
-                {packages.filter((p) => p.fileStatus === FileStatus.FAILED).length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
       {/* Package List */}
       <Paper sx={{ overflow: "hidden" }}>
         <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
           <Typography variant="h6">Packages Ready for Build</Typography>
         </Box>
 
-        {filteredPackages.length === 0 ? (
+        {packagesLoading && packages.length === 0 ? (
+          <Box sx={{ p: 4, textAlign: "center" }}>
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading packages...</Typography>
+          </Box>
+        ) : packages.length === 0 ? (
           <Box sx={{ p: 4, textAlign: "center" }}>
             <Typography color="text.secondary">
               {searchQuery ? "No packages match your search" : "No packages ready for build"}
             </Typography>
           </Box>
         ) : (
-          filteredPackages.map((pkg) => (
-            <Box
-              key={pkg.id}
-              sx={{
-                p: 2,
-                borderBottom: 1,
-                borderColor: "divider",
-                "&:hover": {
-                  bgcolor: "action.hover",
-                },
-              }}
-            >
-              <Grid container alignItems="center" spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <Typography variant="subtitle2" fontWeight="medium">
-                    {pkg.packageCode}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {pkg.examName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Centre: {pkg.centreCode} | v{pkg.version}
-                  </Typography>
-                </Grid>
+          packages.map((pkg) => {
+            const fileStatus = getPackageFileStatus(pkg);
+            const canBuild = canBuildPackage(pkg);
+            const canRebuild = canRebuildPackage(pkg);
+            const canDownload = canDownloadPackage(pkg);
+            
+            return (
+              <Box
+                key={pkg._id}
+                sx={{
+                  p: 2,
+                  borderBottom: 1,
+                  borderColor: "divider",
+                  "&:hover": {
+                    bgcolor: "action.hover",
+                  },
+                }}
+              >
+                <Grid container alignItems="center" spacing={2}>
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="subtitle2" fontWeight="medium">
+                      {pkg.packageCode}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {pkg.examInfo?.examName || 'N/A'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Centre: {pkg.centreCode} | v{pkg.packageVersion || 1}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Created
-                  </Typography>
-                  <Typography variant="body2">
-                    {new Date(pkg.createdAt).toLocaleDateString()}
-                  </Typography>
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Created
+                    </Typography>
+                    <Typography variant="body2">
+                      {new Date(pkg.createdAt || pkg.generationTiming?.completedAt).toLocaleDateString()}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Status
-                  </Typography>
-                  {getStatusChip(pkg.fileStatus)}
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Status
+                    </Typography>
+                    {getStatusChip(fileStatus)}
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Size
-                  </Typography>
-                  <Typography variant="body2">{pkg.fileSize || "N/A"}</Typography>
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Size
+                    </Typography>
+                    <Typography variant="body2">
+                      {pkg.packageSize ? formatFileSize(pkg.packageSize) : "N/A"}
+                    </Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <Stack direction="row" spacing={1} justifyContent="flex-end">
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<BuildIcon />}
-                      onClick={() => handleOpenDialog(pkg.id)}
-                    >
-                      Build
-                    </Button>
-                    <Button
-                      variant="text"
-                      size="small"
-                      onClick={() => handleViewPackage(pkg.id)}
-                    >
-                      View
-                    </Button>
-                  </Stack>
+                  <Grid item xs={12} md={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      Actions
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Tooltip title="View Package">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewPackage(pkg._id)}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      {canBuild && (
+                        <Tooltip title="Build Package">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleOpenDialog(pkg._id, pkg.packageCode)}
+                          >
+                            <BuildIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {canDownload && (
+                        <Tooltip title="Download Package">
+                          <IconButton
+                            size="small"
+                            color="success"
+                            onClick={() => handleDownload(pkg._id, pkg.packageCode + '.cbtx')}
+                          >
+                            <DownloadIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </Grid>
                 </Grid>
-              </Grid>
-            </Box>
-          ))
+              </Box>
+            );
+          })
         )}
       </Paper>
 
@@ -408,7 +560,7 @@ const PackageBuilderPage = () => {
         open={dialogOpen}
         onClose={handleCloseDialog}
         packageId={selectedPackageId}
-        packageCode={packages.find((p) => p.id === selectedPackageId)?.packageCode}
+        packageCode={selectedPackageCode}
         onBuild={handleBuild}
         onRebuild={handleRebuild}
         onDownload={handleDownload}
