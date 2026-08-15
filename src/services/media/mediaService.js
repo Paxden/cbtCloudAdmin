@@ -110,14 +110,33 @@ export const replaceMedia = async (id, file) => {
 };
 
 /**
+ * Delete a media file (permanent or soft delete based on backend)
+ * @param {string} id - Media ID
+ * @param {Object} options - Additional options
+ * @param {boolean} options.permanent - Whether to permanently delete
+ * @returns {Promise<Object>} Deleted media response
+ */
+export const deleteMedia = async (id, options = {}) => {
+  try {
+    const { permanent = false } = options;
+    const response = await api.delete(`${MEDIA_URL}/${id}`, {
+      params: { permanent }
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
  * Archive a media file (soft delete)
  * @param {string} id - Media ID
  * @returns {Promise<Object>} Archived media
  */
 export const archiveMedia = async (id) => {
   try {
-    const response = await api.delete(`${MEDIA_URL}/${id}`);
-    return response.data;
+    // This is now a wrapper around deleteMedia with permanent=false
+    return await deleteMedia(id, { permanent: false });
   } catch (error) {
     throw error.response?.data || error;
   }
@@ -194,16 +213,37 @@ export const getActiveMedia = async (params = {}) => {
   }
 };
 
+/**
+ * Bulk delete media
+ * @param {string[]} ids - Array of media IDs
+ * @param {Object} options - Additional options
+ * @param {boolean} options.permanent - Whether to permanently delete
+ * @returns {Promise<Object>} Bulk delete response
+ */
+export const bulkDeleteMedia = async (ids, options = {}) => {
+  try {
+    const { permanent = false } = options;
+    const response = await api.delete(`${MEDIA_URL}/bulk`, {
+      data: { ids, permanent }
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
 export default {
   uploadMedia,
   getMedia,
   getMediaById,
   updateMedia,
   replaceMedia,
+  deleteMedia,
   archiveMedia,
   restoreMedia,
   activateMedia,
   deactivateMedia,
   getMediaStatistics,
   getActiveMedia,
+  bulkDeleteMedia,
 };

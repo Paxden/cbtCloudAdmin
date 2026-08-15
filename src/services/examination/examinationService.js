@@ -117,7 +117,33 @@ export const updateExamination = async (id, data) => {
 };
 
 /**
- * Archive examination
+ * Delete (soft delete) examination
+ * @param {string} id - Examination ID
+ * @param {Object} options - Additional options
+ * @param {string} options.reason - Reason for deletion
+ * @param {boolean} options.permanent - Whether to permanently delete
+ * @returns {Promise<Object>} Deleted examination
+ */
+export const deleteExamination = async (id, options = {}) => {
+  try {
+    const { reason = 'No reason provided', permanent = false } = options;
+    
+    // If permanent delete is requested, use a different endpoint
+    if (permanent) {
+      const response = await api.delete(`${EXAM_URL}/${id}/permanent`);
+      return response.data;
+    }
+    
+    // Otherwise, use the archive endpoint for soft delete
+    const response = await api.patch(`${EXAM_URL}/${id}/archive`, { reason });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Archive examination (soft delete) - Alias for deleteExamination
  * @param {string} id - Examination ID
  * @param {Object} data - Archive data
  * @param {string} data.reason - Archive reason
@@ -125,8 +151,8 @@ export const updateExamination = async (id, data) => {
  */
 export const archiveExamination = async (id, data = {}) => {
   try {
-    const response = await api.patch(`${EXAM_URL}/${id}/archive`, data);
-    return response.data;
+    // This is now a wrapper around deleteExamination
+    return await deleteExamination(id, { reason: data.reason || 'No reason provided' });
   } catch (error) {
     throw error.response?.data || error;
   }
@@ -140,6 +166,20 @@ export const archiveExamination = async (id, data = {}) => {
 export const restoreExamination = async (id) => {
   try {
     const response = await api.patch(`${EXAM_URL}/${id}/restore`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Permanently delete examination (hard delete)
+ * @param {string} id - Examination ID
+ * @returns {Promise<Object>} Deleted examination
+ */
+export const permanentDeleteExamination = async (id) => {
+  try {
+    const response = await api.delete(`${EXAM_URL}/${id}/permanent`);
     return response.data;
   } catch (error) {
     throw error.response?.data || error;
@@ -205,14 +245,46 @@ export const cloneExamination = async (id, data) => {
   }
 };
 
+/**
+ * Bulk delete examinations
+ * @param {string[]} ids - Array of examination IDs
+ * @param {Object} options - Additional options
+ * @param {string} options.reason - Reason for deletion
+ * @param {boolean} options.permanent - Whether to permanently delete
+ * @returns {Promise<Object>} Bulk delete response
+ */
+export const bulkDeleteExaminations = async (ids, options = {}) => {
+  try {
+    const { reason = 'No reason provided', permanent = false } = options;
+    
+    if (permanent) {
+      const response = await api.delete(`${EXAM_URL}/bulk/permanent`, {
+        data: { ids }
+      });
+      return response.data;
+    }
+    
+    const response = await api.patch(`${EXAM_URL}/bulk/archive`, {
+      ids,
+      reason
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
 export default {
   createExamination,
   getExaminations,
   getExamination,
   updateExamination,
+  deleteExamination,
   archiveExamination,
   restoreExamination,
+  permanentDeleteExamination,
   getExaminationStats,
   checkCodeAvailability,
   cloneExamination,
+  bulkDeleteExaminations,
 };
