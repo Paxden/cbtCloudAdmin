@@ -59,7 +59,7 @@ import { usePackages } from "../../hooks/usePackage";
 
 // Components
 import PackageBuilderDialog from "../../components/package-builder/PackageBuilderDialog";
-import PackageStatusCard from "../../components/package-builder/PackageStatusCard";
+import PackageStatusCard from "../../components/package/PackageStatusCard";
 import BuildHistoryTable from "../../components/package-builder/BuildHistoryTable";
 
 // Types
